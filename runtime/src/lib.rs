@@ -54,13 +54,15 @@ pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::Account
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
-pub type AccountIndex = u32;
+/// Update: Using u64
+pub type AccountIndex = u64;
 
 /// Balance of an account.
 pub type Balance = u128;
 
 /// Index of a transaction in the chain.
-pub type Index = u32;
+/// Update: Using u64
+pub type Index = u64;
 
 /// A hash of some data used by the chain.
 pub type Hash = sp_core::H256;
