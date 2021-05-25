@@ -1,4 +1,4 @@
-# Stellar Second Layer Network by SatoshiPay
+# Pendulum Chain: Second Layer Network by SatoshiPay
 
 Second layer network node and the pallets (modules) it requires.
 
