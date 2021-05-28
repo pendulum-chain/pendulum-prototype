@@ -13,12 +13,19 @@ use frame_system::{
 	},
 };
 use sp_core::{crypto::KeyTypeId};
+use sp_runtime::offchain::http::Request;
+use sp_runtime::offchain;
 use sp_runtime::RuntimeDebug;
+
 use sp_std::{collections::vec_deque::VecDeque, prelude::*, str};
 
 use serde::{Deserialize, Deserializer};
 
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
+
+pub const HTTP_REMOTE_REQUEST: &str = "https://horizon-testnet.stellar.org/transactions";
+pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
+
 
 /// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrapper.
 /// We can utilize the supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
@@ -47,6 +54,58 @@ pub mod crypto {
 		type GenericSignature = sp_core::sr25519::Signature;
 		type GenericPublic = sp_core::sr25519::Public;
 	}
+}
+
+
+// This represents each record for a transaction in the Horizon API response 
+#[derive(Deserialize, Encode, Decode, Default, Debug)]
+pub struct Transaction {
+	#[serde(deserialize_with = "de_string_to_bytes")]
+	id: Vec<u8>,
+    successful: bool,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    hash: Vec<u8>,
+    ledger: u32,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    created_at: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    source_account: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    source_account_sequence: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    fee_account: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    fee_charged: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    max_fee: Vec<u8>,
+    operation_count: u32,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    envelope_xdr: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    result_xdr: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    result_meta_xdr: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    fee_meta_xdr: Vec<u8>,
+	#[serde(deserialize_with = "de_string_to_bytes")]
+    memo_type: Vec<u8>
+}
+
+
+// The following structs represent the whole response when fetching any Horizon API
+// In this particular case we asunme the embedded payload will allways be for transactions
+// ref https://developers.stellar.org/api/introduction/response-format/
+
+#[derive(Deserialize, Debug)]
+pub struct HorizonEmbeddedPayload {
+	records: Vec<Transaction>
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HorizonResponse {
+	// We don't care about specifics of pagination, so we just tell serde that this will be a generic json value
+	_links: serde_json::Value,
+	_embedded: HorizonEmbeddedPayload
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -113,7 +172,7 @@ decl_error! {
 		// Error returned when making unsigned transactions with signed payloads in off-chain worker
 		OffchainUnsignedTxSignedPayloadError,
 
-		// Error returned when fetching github info
+		// Error returned when fetching remote info
 		HttpFetchingError,
 	}
 }
@@ -122,6 +181,62 @@ decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		fn offchain_worker(_n: T::BlockNumber) {
 			debug::info!("Hello from an offchain worker 👋");
+			let res = Self::fetch_n_parse();
+			let transactions = &res.unwrap()._embedded.records;
+
+			// TODO implement logic with transactions
+
+			// Debug: print first transaction id as str
+			let id_first_transaction_str = str::from_utf8(&transactions[0].id).unwrap();
+
+			debug::info!("got {:#?}", id_first_transaction_str);
 		}
+	}
+}
+
+
+impl<T: Config> Module<T> {
+	fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
+		debug::info!("sending request to: {}", HTTP_REMOTE_REQUEST);
+
+		let request = Request::get(HTTP_REMOTE_REQUEST);
+
+		let timeout = sp_io::offchain::timestamp()
+			.add(offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+
+		let pending = request
+			.deadline(timeout)
+			.send()
+			.map_err(|_| <Error<T>>::HttpFetchingError)?;
+
+		let response = pending
+			.try_wait(timeout)
+			.map_err(|_| <Error<T>>::HttpFetchingError)?
+			.map_err(|_| <Error<T>>::HttpFetchingError)?;
+
+		if response.code != 200 {
+			debug::error!("Unexpected HTTP request status code: {}", response.code);
+			return Err(<Error<T>>::HttpFetchingError);
+		}
+
+		let json_result: Vec<u8> = response.body().collect::<Vec<u8>>();
+	
+		Ok(json_result)
+	}
+
+	/// Fetch from remote and deserialize to HorizonResponse
+	fn fetch_n_parse() -> Result<HorizonResponse, Error<T>> {
+		let resp_bytes = Self::fetch_from_remote()
+			.map_err(|e| {
+				debug::error!("fetch_from_remote error: {:?}", e);
+				<Error<T>>::HttpFetchingError
+			})?;
+
+		let resp_str = str::from_utf8(&resp_bytes)
+			.map_err(|_| <Error<T>>::HttpFetchingError)?;
+
+		// Deserializing JSON to struct, thanks to `serde` and `serde_derive`
+		let horizon_response: HorizonResponse = serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::HttpFetchingError)?;
+		Ok(horizon_response)
 	}
 }
