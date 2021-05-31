@@ -13,9 +13,10 @@ use frame_system::{
 	},
 };
 use sp_core::{crypto::KeyTypeId};
-use sp_runtime::offchain::http::Request;
-use sp_runtime::offchain;
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{
+	RuntimeDebug,
+	offchain::{http::Request, Duration, storage::StorageValueRef},
+};
 
 use sp_std::{collections::vec_deque::VecDeque, prelude::*, str};
 
@@ -180,16 +181,48 @@ decl_error! {
 decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		fn offchain_worker(_n: T::BlockNumber) {
+			const UP_TO_DATE: () = ();
+
 			debug::info!("Hello from an offchain worker 👋");
 			let res = Self::fetch_n_parse();
 			let transactions = &res.unwrap()._embedded.records;
+			let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
 
-			// TODO implement logic with transactions
+			let fetched_last_tx_id_utf8 = transactions[0].id.clone();
+			let fetched_last_tx_id = str::from_utf8(&transactions[0].id).unwrap();
 
-			// Debug: print first transaction id as str
-			let id_first_transaction_str = str::from_utf8(&transactions[0].id).unwrap();
+			let res = id_storage.mutate(|last_tx_id: Option<Option<Vec<u8>>>| {
+				match last_tx_id {
+					Some(Some(value)) if str::from_utf8(&value).unwrap() == fetched_last_tx_id => {
+						Err(UP_TO_DATE)
+					},
+					_ => Ok(fetched_last_tx_id_utf8)
+				}
+			});
 
-			debug::info!("got {:#?}", id_first_transaction_str);
+			// The result of `mutate` call will give us a nested `Result` type.
+			// The first one matches the return of the closure passed to `mutate`, i.e.
+			// if we return `Err` from the closure, we get an `Err` here.
+			// In case we return `Ok`, here we will have another (inner) `Result` that indicates
+			// if the value has been set to the storage correctly - i.e. if it wasn't
+			// written to in the meantime.
+			match res {
+				// The value has been set correctly.
+				Ok(Ok(saved_tx_id)) => {
+					// TODO implement logic to send a transaction to the chain.
+					debug::info!("New value saved {:#?}", str::from_utf8(&saved_tx_id).unwrap());
+				},
+				// The transaction id is the same as before.
+				Err(UP_TO_DATE) => {
+					debug::info!("Already up to date");
+				},
+				// We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
+				// most likely executed the same logic and succeeded at writing to storage.
+				// We don't do anyhting by now, but ideally we should queue transaction ids for processing.
+				Ok(Err(_)) => {
+					debug::info!("Failed to save last transaction id.");
+				}
+			}
 		}
 	}
 }
@@ -202,7 +235,7 @@ impl<T: Config> Module<T> {
 		let request = Request::get(HTTP_REMOTE_REQUEST);
 
 		let timeout = sp_io::offchain::timestamp()
-			.add(offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+			.add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
 		let pending = request
 			.deadline(timeout)
