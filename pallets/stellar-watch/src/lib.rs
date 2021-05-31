@@ -23,7 +23,7 @@ use serde::{Deserialize, Deserializer};
 
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 
-pub const HTTP_REMOTE_REQUEST: &str = "https://horizon-testnet.stellar.org/transactions";
+pub const HTTP_REMOTE_REQUEST: &str = "https://horizon-testnet.stellar.org/accounts/GAIMY7QQDWDQLX3KH6KFR25JLRJS4VGXFKLTRK66MPI6VPU3YDOPS6KQ/transactions?order=desc&limit=1";
 pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
 
 
