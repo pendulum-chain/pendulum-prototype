@@ -169,7 +169,7 @@ decl_event!(
 		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = <T as BalancesConfig>::Balance
 	{
-		/// Event generated when a new number is accepted to contribute to the average.
+		/// Event generated when a new deposit is made on Stellar Escrow Account.
 		Deposit(AccountId, Balance),
 	}
 );
