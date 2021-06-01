@@ -272,8 +272,8 @@ impl pallet_template::Config for Runtime {
 }
 
 parameter_types! {
-	pub const GatewayMockedAmount: Balance = 1000;
-	pub GatewayMockedDestination: AccountId = hex_literal::hex!("1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD").into();
+	pub const GatewayMockedAmount: Balance = 1_000_000_000;
+	pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
 }
 
 // ---------------------- Stellar Watch Pallet Configurations ----------------------
