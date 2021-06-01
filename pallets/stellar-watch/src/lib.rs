@@ -106,7 +106,6 @@ pub struct Transaction {
 // The following structs represent the whole response when fetching any Horizon API
 // In this particular case we asunme the embedded payload will allways be for transactions
 // ref https://developers.stellar.org/api/introduction/response-format/
-
 #[derive(Deserialize, Debug)]
 pub struct HorizonEmbeddedPayload {
 	records: Vec<Transaction>
@@ -220,18 +219,10 @@ decl_module! {
 			const UP_TO_DATE: () = ();
 
 			debug::info!("Hello from an offchain worker 👋");
+
 			let res = Self::fetch_n_parse();
 			let transactions = &res.unwrap()._embedded.records;
 
-			// TODO implement logic with transactions
-			let amount = T::GatewayMockedAmount::get();
-			let destination = T::GatewayMockedDestination::get();
-			Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
-
-			// Debug: print first transaction id as str
-			let id_first_transaction_str = str::from_utf8(&transactions[0].id).unwrap();
-
-			debug::info!("got {:#?}", id_first_transaction_str);
 			let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
 
 			let fetched_last_tx_id_utf8 = transactions[0].id.clone();
@@ -255,8 +246,11 @@ decl_module! {
 			match res {
 				// The value has been set correctly.
 				Ok(Ok(saved_tx_id)) => {
-					// TODO implement logic to send a transaction to the chain.
-					debug::info!("New value saved {:#?}", str::from_utf8(&saved_tx_id).unwrap());
+					debug::info!("New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
+
+					let amount = T::GatewayMockedAmount::get();
+					let destination = T::GatewayMockedDestination::get();
+					Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
 				},
 				// The transaction id is the same as before.
 				Err(UP_TO_DATE) => {
@@ -330,7 +324,6 @@ impl<T: Config> Module<T> {
 		//   - `Some((account, Err(())))`: error occured when sending the transaction
 		if let Some((_, res)) = signer.send_unsigned_transaction(
 			|acct| Payload {
-				// TODO: Use amount to increase balance by from Stellar transaction    <--------
 				deposit,
 				destination: destination.clone(),
 				signed_by: acct.public.clone(),
@@ -354,7 +347,7 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 		let valid_tx = |provide| {
-			ValidTransaction::with_tag_prefix("ocw-demo")
+			ValidTransaction::with_tag_prefix("stellar-watch")
 				.priority(UNSIGNED_TXS_PRIORITY)
 				.and_provides([&provide])
 				.longevity(3)
@@ -369,7 +362,6 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 				}
 				valid_tx(b"submit_deposit_unsigned_with_signed_payload".to_vec())
 			},
-
 			_ => InvalidTransaction::Call.into(),
 		}
 	}

@@ -358,7 +358,7 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the pallet-template in the runtime.
-		StellarWatch: pallet_stellar_watch::{Module, Call, Storage, Event<T>},
+		StellarWatch: pallet_stellar_watch::{Module, Call, Storage, Event<T>, ValidateUnsigned},
 		// Include stellar-watch pallet.
 		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
 	}
