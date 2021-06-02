@@ -12,19 +12,21 @@ use pallet_grandpa::fg_primitives;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, Encode, OpaqueMetadata};
 use sp_runtime::traits::{
     AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify,
 };
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiSignature,
+    ApplyExtrinsicResult, MultiAddress, MultiSignature, SaturatedConversion,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+
+use hex_literal;
 
 // A few exports that help ease life for downstream crates.
 pub use pallet_stellar_watch;
@@ -279,6 +281,8 @@ parameter_types! {
     pub const StringLimit: u32 = 50;
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
+    pub const GatewayMockedAmount: Balance = 1_000_000_000;
+    pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
 }
 
 impl pallet_assets::Config for Runtime {
@@ -302,10 +306,70 @@ impl pallet_template::Config for Runtime {
 
 // ---------------------- Stellar Watch Pallet Configurations ----------------------
 impl pallet_stellar_watch::Config for Runtime {
+    type AuthorityId = pallet_stellar_watch::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
+    type GatewayMockedAmount = GatewayMockedAmount;
+    type GatewayMockedDestination = GatewayMockedDestination;
 }
 
+pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
+where
+    Call: From<LocalCall>,
+{
+    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+        call: Call,
+        public: <Signature as sp_runtime::traits::Verify>::Signer,
+        account: AccountId,
+        index: Index,
+    ) -> Option<(
+        Call,
+        <UncheckedExtrinsic as sp_runtime::traits::Extrinsic>::SignaturePayload,
+    )> {
+        let period = BlockHashCount::get() as u64;
+        let current_block = System::block_number()
+            .saturated_into::<u64>()
+            .saturating_sub(1);
+        let tip = 0;
+        let extra: SignedExtra = (
+            frame_system::CheckSpecVersion::<Runtime>::new(),
+            frame_system::CheckTxVersion::<Runtime>::new(),
+            frame_system::CheckGenesis::<Runtime>::new(),
+            frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+            frame_system::CheckNonce::<Runtime>::from(index),
+            frame_system::CheckWeight::<Runtime>::new(),
+            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+        );
+
+        #[cfg_attr(not(feature = "std"), allow(unused_variables))]
+        let raw_payload = SignedPayload::new(call, extra)
+            .map_err(|e| {
+                debug::native::warn!("SignedPayload error: {:?}", e);
+            })
+            .ok()?;
+
+        let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
+
+        let address = MultiAddress::Id(account);
+        let (call, extra, _) = raw_payload.deconstruct();
+        Some((call, (address, signature, extra)))
+    }
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+    Call: From<C>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = UncheckedExtrinsic;
+}
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
     pub enum Runtime where
@@ -322,7 +386,7 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
         // Include the custom logic from the pallet-template in the runtime.
-        StellarWatch: pallet_stellar_watch::{Module, Call, Storage, Event<T>},
+        StellarWatch: pallet_stellar_watch::{Module, Call, Storage, Event<T>, ValidateUnsigned},
         // Include stellar-watch pallet.
         TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
         Assets: pallet_assets::{Module, Call, Storage, Event<T>},

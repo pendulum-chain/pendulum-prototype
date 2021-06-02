@@ -20,6 +20,8 @@ sp-io = { version = '3.0', default-features = false }
 sp-runtime = { version = '3.0', default-features = false }
 sp-std = { version = '3.0', default-features = false }
 sp-keystore = { version = '0.9', optional = true }
+pallet-balances = { version = '3.0.0', default-features = false }
+pallet-transaction-payment = { version = '3.0.0', default-features = false }
 
 [features]
 default = ['std']
