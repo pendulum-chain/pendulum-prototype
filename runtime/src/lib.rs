@@ -6,6 +6,8 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+mod stellar_assets;
+
 use pallet_grandpa::fg_primitives;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use sp_api::impl_runtime_apis;
@@ -271,14 +273,35 @@ impl pallet_sudo::Config for Runtime {
     type Call = Call;
 }
 
+pub const XLM: Balance = 10_000_000;
+
+parameter_types! {
+    pub const AssetDeposit: Balance = 100 * XLM;
+    pub const ApprovalDeposit: Balance = 1 * XLM;
+    pub const StringLimit: u32 = 50;
+    pub const MetadataDepositBase: Balance = 10 * XLM;
+    pub const MetadataDepositPerByte: Balance = 1 * XLM;
+    pub const GatewayMockedAmount: Balance = 1_000_000_000;
+    pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
+}
+
+impl pallet_assets::Config for Runtime {
+    type Event = Event;
+    type Balance = u64;
+    type AssetId = stellar_assets::StellarAsset;
+    type Currency = Balances;
+    type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+    type AssetDepositBase = AssetDeposit;
+    type AssetDepositPerZombie = AssetDeposit;
+    type StringLimit = StringLimit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type MetadataDepositPerByte = MetadataDepositPerByte;
+    type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
+}
+
 /// Configure the pallet-template in pallets/template.
 impl pallet_template::Config for Runtime {
     type Event = Event;
-}
-
-parameter_types! {
-    pub const GatewayMockedAmount: Balance = 1_000_000_000;
-    pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
 }
 
 // ---------------------- Stellar Watch Pallet Configurations ----------------------
@@ -366,6 +389,7 @@ construct_runtime!(
         StellarWatch: pallet_stellar_watch::{Module, Call, Storage, Event<T>, ValidateUnsigned},
         // Include stellar-watch pallet.
         TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
+        Assets: pallet_assets::{Module, Call, Storage, Event<T>},
     }
 );
 
