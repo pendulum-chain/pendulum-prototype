@@ -3841,7 +3841,6 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
- "hex-literal",
  "pallet-balances",
  "pallet-transaction-payment",
  "parity-scale-codec",
