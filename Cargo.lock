@@ -3546,6 +3546,7 @@ dependencies = [
  "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
+ "sp-keystore",
  "sp-runtime",
  "sp-transaction-pool",
  "structopt",
@@ -3840,6 +3841,8 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-balances",
+ "pallet-transaction-payment",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "serde",
