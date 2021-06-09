@@ -231,6 +231,9 @@ decl_module! {
             let fetched_last_tx_id_utf8 = transactions[0].id.clone();
             let fetched_last_tx_id = str::from_utf8(&transactions[0].id).unwrap();
 
+            let prev_read = id_storage.get::<Vec<u8>>();
+            let initial = !matches!(prev_read, Some(Some(_)));
+
             let res = id_storage.mutate(|last_tx_id: Option<Option<Vec<u8>>>| {
                 match last_tx_id {
                     Some(Some(value)) if str::from_utf8(&value).unwrap() == fetched_last_tx_id => {
@@ -249,11 +252,13 @@ decl_module! {
             match res {
                 // The value has been set correctly.
                 Ok(Ok(saved_tx_id)) => {
-                    debug::info!("New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
+                    if !initial {
+                        debug::info!("New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
-                    let amount = T::GatewayMockedAmount::get();
-                    let destination = T::GatewayMockedDestination::get();
-                    Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
+                        let amount = T::GatewayMockedAmount::get();
+                        let destination = T::GatewayMockedDestination::get();
+                        Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
+                    }
                 },
                 // The transaction id is the same as before.
                 Err(UP_TO_DATE) => {
