@@ -278,7 +278,9 @@ decl_module! {
 
 impl<T: Config> Module<T> {
     fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
-        let request_url = String::from("https://horizon-testnet.stellar.org/accounts/") + T::GatewayEscrowAccount::get() + "/transactions?order=desc&limit=1";
+        let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
+            + T::GatewayEscrowAccount::get()
+            + "/transactions?order=desc&limit=1";
 
         debug::info!("Sending request to: {}", request_url.as_str());
 
