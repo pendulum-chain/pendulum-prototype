@@ -7,6 +7,8 @@ use frame_support::{
 };
 use parity_scale_codec::{Decode, Encode};
 
+use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
+
 use frame_system::{
     ensure_none,
     offchain::{
@@ -230,6 +232,14 @@ decl_module! {
 
             let fetched_last_tx_id_utf8 = transactions[0].id.clone();
             let fetched_last_tx_id = str::from_utf8(&transactions[0].id).unwrap();
+            let t: &Transaction = &transactions[0];
+            let xdr = base64::decode(&t.envelope_xdr).unwrap();
+            let envelope = xdr::TransactionEnvelope::from_xdr(&xdr);
+
+            match envelope {
+                Ok(env) => debug::info!("{:#?}", env),
+                Err(err) => debug::info!("{:#?}", err)
+            }
 
             let prev_read = id_storage.get::<Vec<u8>>();
             let initial = !matches!(prev_read, Some(Some(_)));

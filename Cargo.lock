@@ -3855,6 +3855,7 @@ dependencies = [
 name = "pallet-stellar-watch"
 version = "0.1.0"
 dependencies = [
+ "base64 0.13.0",
  "frame-support",
  "frame-system",
  "pallet-balances",
@@ -3869,6 +3870,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "sp-std",
+ "substrate-stellar-xdr",
 ]
 
 [[package]]
@@ -7158,6 +7160,15 @@ dependencies = [
  "log",
  "prometheus",
  "tokio 0.2.25",
+]
+
+[[package]]
+name = "substrate-stellar-xdr"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3df74215ec3035d86fe8629fe31ba547302c7a673e2971e561651c985321d83c"
+dependencies = [
+ "sp-std",
 ]
 
 [[package]]
