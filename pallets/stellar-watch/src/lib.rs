@@ -1,6 +1,8 @@
 //! A PoC offchain worker that fetches data from Stellar Horizon Servers
 
 #![cfg_attr(not(feature = "std"), no_std)]
+mod string;
+
 use frame_support::traits::{Currency, Get};
 use frame_support::{
     debug, decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult,
@@ -27,6 +29,7 @@ use sp_runtime::{
 use sp_std::{collections::vec_deque::VecDeque, prelude::*, str};
 
 use serde::{Deserialize, Deserializer};
+use string::String;
 
 use pallet_balances::{Config as BalancesConfig, Pallet as BalancesPallet};
 use pallet_transaction_payment::Config as PaymentConfig;
@@ -35,7 +38,6 @@ pub type Balance = u128;
 
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 
-pub const HTTP_REMOTE_REQUEST: &str = "https://horizon-testnet.stellar.org/accounts/GAIMY7QQDWDQLX3KH6KFR25JLRJS4VGXFKLTRK66MPI6VPU3YDOPS6KQ/transactions?order=desc&limit=1";
 pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
 
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
@@ -155,6 +157,7 @@ pub trait Config:
     /// The overarching event type.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
+    type GatewayEscrowAccount: Get<&'static str>;
     type GatewayMockedAmount: Get<<Self as pallet_balances::Config>::Balance>;
     type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
 }
@@ -223,8 +226,6 @@ decl_module! {
         fn offchain_worker(_n: T::BlockNumber) {
             const UP_TO_DATE: () = ();
 
-            debug::info!("Hello from an offchain worker 👋");
-
             let res = Self::fetch_n_parse();
             let transactions = &res.unwrap()._embedded.records;
 
@@ -263,7 +264,7 @@ decl_module! {
                 // The value has been set correctly.
                 Ok(Ok(saved_tx_id)) => {
                     if !initial {
-                        debug::info!("New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
+                        debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
                         let amount = T::GatewayMockedAmount::get();
                         let destination = T::GatewayMockedDestination::get();
@@ -287,10 +288,13 @@ decl_module! {
 
 impl<T: Config> Module<T> {
     fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
-        debug::info!("sending request to: {}", HTTP_REMOTE_REQUEST);
+        let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
+            + T::GatewayEscrowAccount::get()
+            + "/transactions?order=desc&limit=1";
 
-        let request = Request::get(HTTP_REMOTE_REQUEST);
+        debug::info!("Sending request to: {}", request_url.as_str());
 
+        let request = Request::get(request_url.as_str());
         let timeout = sp_io::offchain::timestamp().add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
         let pending = request
