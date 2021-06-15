@@ -3570,7 +3570,7 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-randomness-collective-flip",
- "pallet-stellar-watch",
+ "pallet-stellar-bridge",
  "pallet-sudo",
  "pallet-template",
  "pallet-timestamp",
@@ -3852,7 +3852,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-stellar-watch"
+name = "pallet-stellar-bridge"
 version = "0.1.0"
 dependencies = [
  "frame-support",

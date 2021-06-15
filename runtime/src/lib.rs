@@ -29,7 +29,7 @@ use sp_version::RuntimeVersion;
 use hex_literal;
 
 // A few exports that help ease life for downstream crates.
-pub use pallet_stellar_watch;
+pub use pallet_stellar_bridge;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -305,9 +305,9 @@ impl pallet_template::Config for Runtime {
     type Event = Event;
 }
 
-// ---------------------- Stellar Watch Pallet Configurations ----------------------
-impl pallet_stellar_watch::Config for Runtime {
-    type AuthorityId = pallet_stellar_watch::crypto::TestAuthId;
+// ---------------------- Stellar Bridge Pallet Configurations ----------------------
+impl pallet_stellar_bridge::Config for Runtime {
+    type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
     type GatewayEscrowAccount = GatewayEscrowAccount;
@@ -387,9 +387,9 @@ construct_runtime!(
         Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
-        // Include the custom logic from the pallet-template in the runtime.
-        StellarWatch: pallet_stellar_watch::{Module, Call, Storage, Event<T>, ValidateUnsigned},
         // Include stellar-watch pallet.
+        StellarBridge: pallet_stellar_bridge::{Module, Call, Storage, Event<T>, ValidateUnsigned},
+        // Include the custom logic from the pallet-template in the runtime.
         TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
         Assets: pallet_assets::{Module, Call, Storage, Event<T>},
     }

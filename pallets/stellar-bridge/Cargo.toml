@@ -1,5 +1,5 @@
 [package]
-name = "pallet-stellar-watch"
+name = "pallet-stellar-bridge"
 version = "0.1.0"
 authors = ["Gonza <gonzalo@satoshipay.io>"]
 edition = "2018"
