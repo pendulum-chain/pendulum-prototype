@@ -1,10 +1,14 @@
+<div background="red">
+  <h2 align="center">🚧 Under construction 🚧</h2>
+  <h3 align="center">This is an early prototype right now. Do not try to run this in production!</h3>
+</div>
+<br>
+
 # Pendulum Chain: Second Layer Network by SatoshiPay
 
 Second layer network node and the pallets (modules) it requires.
 
 Based on Substrate. Repository based on [substrate-developer-hub/substrate-node-template](https://github.com/substrate-developer-hub/substrate-node-template).
-
-**🚧 Under construction 🚧**
 
 ## Setup
 
