@@ -231,16 +231,8 @@ decl_module! {
 
             let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
 
-            let fetched_last_tx_id_utf8 = transactions[0].id.clone();
-            let fetched_last_tx_id = str::from_utf8(&transactions[0].id).unwrap();
-            let t: &Transaction = &transactions[0];
-            let xdr = base64::decode(&t.envelope_xdr).unwrap();
-            let envelope = xdr::TransactionEnvelope::from_xdr(&xdr);
-
-            match envelope {
-                Ok(env) => debug::info!("{:#?}", env),
-                Err(err) => debug::info!("{:#?}", err)
-            }
+            let tx: &Transaction = &transactions[0];
+            let fetched_last_tx_id = str::from_utf8(&tx.id).unwrap();
 
             let prev_read = id_storage.get::<Vec<u8>>();
             let initial = !matches!(prev_read, Some(Some(_)));
@@ -250,7 +242,7 @@ decl_module! {
                     Some(Some(value)) if str::from_utf8(&value).unwrap() == fetched_last_tx_id => {
                         Err(UP_TO_DATE)
                     },
-                    _ => Ok(fetched_last_tx_id_utf8)
+                    _ => Ok(tx.id.clone())
                 }
             });
 
@@ -266,8 +258,46 @@ decl_module! {
                     if !initial {
                         debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
+                        // Decode transaction to Base64 and then to Stellar XDR to get transaction details
+                        let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
+                        let tx_envelope = xdr::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
+
+                        if let xdr::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+
+                            // Source account will be our destination account
+                            if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
+                                debug::info!("Source account {}", str::from_utf8(&key).unwrap_or("Invalid account"));
+                            }
+
+                            for op in env.tx.operations.get_vec() {
+                                if let xdr::OperationBody::Payment(payment_op) = &op.body {
+                                    // TODO: optional, double check destination is the escrow account
+
+                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest) = payment_op.destination {
+                                        debug::info!("Escrow account {}", str::from_utf8(&dest).unwrap_or("Invalid account"));
+                                    }
+                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
+                                        debug::info!("Asset {:#?}", str::from_utf8(&code.asset_code).unwrap_or("Invalid asset code."));
+                                        debug::info!("Amount {:#?}", payment_op.amount / 10000000);
+                                    }
+                                }
+                            }
+                            
+                        }
+
+                        // // Src account in Stellar is dest account in Pendulum
+                        // match tx_envelope {
+                        //     Ok(env_type) =>  match env_type {
+                        //         xdr::EnvelopeTypeTx(env_v1) => {
+                        //             debug::info!(env_v1.tx)
+                        //         }
+                        //     }
+                        // }
+
                         let amount = T::GatewayMockedAmount::get();
                         let destination = T::GatewayMockedDestination::get();
+
+
                         Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
                     }
                 },
