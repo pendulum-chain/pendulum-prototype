@@ -10,7 +10,7 @@ parity-scale-codec = { version = '2.0', default-features = false, features = ['d
 # https://github.com/serde-rs/json/pull/606
 serde = { version = '1.0.100', default-features = false, features = ['derive'] }
 serde_json = { version = '1.0.45', default-features = false, features = ['alloc'] }
-substrate-stellar-xdr = '0.1.4'
+substrate-stellar-xdr = '0.2.2'
 base64 = { version = '0.13.0', default-features = false, features = ['alloc'] }
 
 # Substrate packages
