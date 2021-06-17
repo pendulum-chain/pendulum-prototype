@@ -208,6 +208,7 @@ decl_module! {
             _signature: T::Signature) -> DispatchResult
         {
             let _ = ensure_none(origin)?;
+
             // FIXME: Verify signature
             // ~~we don't need to verify the signature here because it has been verified in
             //   `validate_unsigned` function when sending out the unsigned tx.~~
@@ -222,55 +223,13 @@ decl_module! {
         }
 
         fn offchain_worker(_n: T::BlockNumber) {
-            const UP_TO_DATE: () = ();
+            debug::info!("Hello from an offchain worker 👋");
 
             let res = Self::fetch_n_parse();
             let transactions = &res.unwrap()._embedded.records;
 
-            let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
-
-            let fetched_last_tx_id_utf8 = transactions[0].id.clone();
-            let fetched_last_tx_id = str::from_utf8(&transactions[0].id).unwrap();
-
-            let prev_read = id_storage.get::<Vec<u8>>();
-            let initial = !matches!(prev_read, Some(Some(_)));
-
-            let res = id_storage.mutate(|last_tx_id: Option<Option<Vec<u8>>>| {
-                match last_tx_id {
-                    Some(Some(value)) if str::from_utf8(&value).unwrap() == fetched_last_tx_id => {
-                        Err(UP_TO_DATE)
-                    },
-                    _ => Ok(fetched_last_tx_id_utf8)
-                }
-            });
-
-            // The result of `mutate` call will give us a nested `Result` type.
-            // The first one matches the return of the closure passed to `mutate`, i.e.
-            // if we return `Err` from the closure, we get an `Err` here.
-            // In case we return `Ok`, here we will have another (inner) `Result` that indicates
-            // if the value has been set to the storage correctly - i.e. if it wasn't
-            // written to in the meantime.
-            match res {
-                // The value has been set correctly.
-                Ok(Ok(saved_tx_id)) => {
-                    if !initial {
-                        debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
-
-                        let amount = T::GatewayMockedAmount::get();
-                        let destination = T::GatewayMockedDestination::get();
-                        Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
-                    }
-                },
-                // The transaction id is the same as before.
-                Err(UP_TO_DATE) => {
-                    debug::info!("Already up to date");
-                },
-                // We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
-                // most likely executed the same logic and succeeded at writing to storage.
-                // We don't do anyhting by now, but ideally we should queue transaction ids for processing.
-                Ok(Err(_)) => {
-                    debug::info!("Failed to save last transaction id.");
-                }
+            if transactions.len() > 0 {
+                Self::handle_new_transaction(&transactions[0].id);
             }
         }
     }
@@ -319,6 +278,7 @@ impl<T: Config> Module<T> {
         // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
         let horizon_response: HorizonResponse =
             serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::HttpFetchingError)?;
+
         Ok(horizon_response)
     }
 
@@ -350,6 +310,53 @@ impl<T: Config> Module<T> {
             // The case of `None`: no account is available for sending
             debug::error!("No local account available");
             Err(<Error<T>>::NoLocalAcctForSigning)
+        }
+    }
+
+    fn handle_new_transaction(latest_tx_id_utf8: &Vec<u8>) {
+        const UP_TO_DATE: () = ();
+
+        let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
+
+        let prev_read = id_storage.get::<Vec<u8>>();
+        let initial = !matches!(prev_read, Some(Some(_)));
+
+        let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
+            match last_stored_tx_id {
+                Some(Some(value)) if value == *latest_tx_id_utf8 => {
+                    Err(UP_TO_DATE)
+                },
+                _ => Ok(latest_tx_id_utf8.clone())
+            }
+        });
+
+        // The result of `mutate` call will give us a nested `Result` type.
+        // The first one matches the return of the closure passed to `mutate`, i.e.
+        // if we return `Err` from the closure, we get an `Err` here.
+        // In case we return `Ok`, here we will have another (inner) `Result` that indicates
+        // if the value has been set to the storage correctly - i.e. if it wasn't
+        // written to in the meantime.
+        match res {
+            // The value has been set correctly.
+            Ok(Ok(saved_tx_id)) => {
+                if !initial {
+                    debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
+
+                    let amount = T::GatewayMockedAmount::get();
+                    let destination = T::GatewayMockedDestination::get();
+                    Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
+                }
+            },
+            // The transaction id is the same as before.
+            Err(UP_TO_DATE) => {
+                debug::info!("Already up to date");
+            },
+            // We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
+            // most likely executed the same logic and succeeded at writing to storage.
+            // We don't do anyhting by now, but ideally we should queue transaction ids for processing.
+            Ok(Err(_)) => {
+                debug::info!("Failed to save last transaction id.");
+            }
         }
     }
 }
