@@ -281,7 +281,7 @@ parameter_types! {
     pub const StringLimit: u32 = 50;
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
-    pub const GatewayEscrowAccount: &'static str = "GAIMY7QQDWDQLX3KH6KFR25JLRJS4VGXFKLTRK66MPI6VPU3YDOPS6KQ";
+    pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
     pub const GatewayMockedAmount: Balance = 1e18 as Balance;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
 }
