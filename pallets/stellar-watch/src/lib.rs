@@ -19,6 +19,8 @@ use frame_system::{
     },
 };
 use sp_core::crypto::KeyTypeId;
+use sp_core::ed25519;
+
 use sp_runtime::{
     offchain::{http::Request, storage::StorageValueRef, Duration},
     transaction_validity::{
@@ -266,19 +268,25 @@ decl_module! {
 
                             // Source account will be our destination account
                             if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
-                                debug::info!("Source account {}", str::from_utf8(&key).unwrap_or("Invalid account"));
+                                let pubkey = ed25519::Public::from_raw(key);
+                                debug::info!("Source account {:?}", pubkey);
                             }
 
                             for op in env.tx.operations.get_vec() {
+                                let asset_code;
+                                let amount: f64;
+                                
                                 if let xdr::OperationBody::Payment(payment_op) = &op.body {
                                     // TODO: optional, double check destination is the escrow account
-
                                     if let xdr::MuxedAccount::KeyTypeEd25519(dest) = payment_op.destination {
-                                        debug::info!("Escrow account {}", str::from_utf8(&dest).unwrap_or("Invalid account"));
+                                        let pubkey = ed25519::Public::from_raw(dest);
+                                        debug::info!("Escrow account {:?}", pubkey);
                                     }
                                     if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
-                                        debug::info!("Asset {:#?}", str::from_utf8(&code.asset_code).unwrap_or("Invalid asset code."));
-                                        debug::info!("Amount {:#?}", payment_op.amount / 10000000);
+                                        asset_code = str::from_utf8(&code.asset_code).unwrap_or("Invalid asset code.");
+                                        debug::info!("Asset {:#?}", asset_code);
+                                        amount = (payment_op.amount as f64) / 10000000.0;
+                                        debug::info!("Amount {:#?}", amount);
                                     }
                                 }
                             }
