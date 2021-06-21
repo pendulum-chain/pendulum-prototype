@@ -11,6 +11,8 @@ use parity_scale_codec::{Decode, Encode};
 
 use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
 
+use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
+
 use frame_system::{
     ensure_none,
     offchain::{
@@ -19,7 +21,6 @@ use frame_system::{
     },
 };
 use sp_core::crypto::KeyTypeId;
-use sp_core::ed25519;
 
 use sp_runtime::{
     offchain::{http::Request, storage::StorageValueRef, Duration},
@@ -268,8 +269,8 @@ decl_module! {
 
                             // Source account will be our destination account
                             if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
-                                let pubkey = ed25519::Public::from_raw(key);
-                                debug::info!("Source account {:?}", pubkey);
+                                let pubkey = StellarPublicKey::from_binary(key).to_encoding();
+                                debug::info!("Escrow account {:?}", str::from_utf8(&pubkey).unwrap());
                             }
 
                             for op in env.tx.operations.get_vec() {
@@ -279,8 +280,8 @@ decl_module! {
                                 if let xdr::OperationBody::Payment(payment_op) = &op.body {
                                     // TODO: optional, double check destination is the escrow account
                                     if let xdr::MuxedAccount::KeyTypeEd25519(dest) = payment_op.destination {
-                                        let pubkey = ed25519::Public::from_raw(dest);
-                                        debug::info!("Escrow account {:?}", pubkey);
+                                        let pubkey = StellarPublicKey::from_binary(dest).to_encoding();
+                                        debug::info!("Escrow account {:?}", str::from_utf8(&pubkey).unwrap());
                                     }
                                     if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
                                         asset_code = str::from_utf8(&code.asset_code).unwrap_or("Invalid asset code.");
@@ -290,21 +291,10 @@ decl_module! {
                                     }
                                 }
                             }
-                            
                         }
-
-                        // // Src account in Stellar is dest account in Pendulum
-                        // match tx_envelope {
-                        //     Ok(env_type) =>  match env_type {
-                        //         xdr::EnvelopeTypeTx(env_v1) => {
-                        //             debug::info!(env_v1.tx)
-                        //         }
-                        //     }
-                        // }
 
                         let amount = T::GatewayMockedAmount::get();
                         let destination = T::GatewayMockedDestination::get();
-
 
                         Self::offchain_unsigned_tx_signed_payload(amount, destination).unwrap();
                     }
