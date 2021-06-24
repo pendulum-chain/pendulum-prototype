@@ -843,6 +843,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpufeatures"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed00c67cb5d0a7d64a44f6ad2668db7e7530311dd53ea79bcd4fb022c64911c8"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "cpuid-bool"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1285,7 +1294,7 @@ dependencies = [
  "ed25519",
  "rand 0.7.3",
  "serde",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "zeroize",
 ]
 
@@ -2362,6 +2371,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "index-fixed"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4161ceaf2f41b6cd3f6502f5da085d4ad4393a51e0c70ed2fce1d5698d798fae"
+
+[[package]]
 name = "indexmap"
 version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2645,6 +2660,9 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+dependencies = [
+ "spin",
+]
 
 [[package]]
 name = "lazycell"
@@ -2744,7 +2762,7 @@ dependencies = [
  "rand 0.7.3",
  "ring",
  "rw-stream-sink",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "smallvec 1.6.1",
  "thiserror",
  "unsigned-varint 0.7.0",
@@ -2822,7 +2840,7 @@ dependencies = [
  "prost-build",
  "rand 0.7.3",
  "regex",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "smallvec 1.6.1",
  "unsigned-varint 0.6.0",
  "wasm-timer",
@@ -2862,7 +2880,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "smallvec 1.6.1",
  "uint",
  "unsigned-varint 0.7.0",
@@ -2924,7 +2942,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "snow",
  "static_assertions",
  "x25519-dalek",
@@ -3429,7 +3447,7 @@ dependencies = [
  "digest 0.9.0",
  "generic-array 0.14.4",
  "multihash-derive",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "sha3",
  "unsigned-varint 0.5.1",
 ]
@@ -3589,6 +3607,7 @@ dependencies = [
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
+ "substrate-stellar-sdk",
  "substrate-wasm-builder",
 ]
 
@@ -3869,6 +3888,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "sp-std",
+ "substrate-stellar-sdk",
 ]
 
 [[package]]
@@ -3969,9 +3989,9 @@ dependencies = [
 
 [[package]]
 name = "parity-db"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "495197c078e54b8735181aa35c00a327f7f3a3cc00a1ee8c95926dd010f0ec6b"
+checksum = "2e337f62db341435f0da05b8f6b97e984ef4ea5800510cd07c2d624688c40b47"
 dependencies = [
  "blake2-rfc",
  "crc32fast",
@@ -6201,13 +6221,13 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.9.3"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa827a14b29ab7f44778d14a88d3cb76e949c45083f7dbfa507d0cb699dc12de"
+checksum = "b362ae5752fd2137731f9fa25fd4d9058af34666ca1966fb969119cc35719f12"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if 1.0.0",
- "cpuid-bool 0.1.2",
+ "cpufeatures",
  "digest 0.9.0",
  "opaque-debug 0.3.0",
 ]
@@ -6310,7 +6330,7 @@ dependencies = [
  "rand_core 0.5.1",
  "ring",
  "rustc_version",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "subtle 2.4.0",
  "x25519-dalek",
 ]
@@ -6334,6 +6354,15 @@ checksum = "9e3dfc207c526015c632472a77be09cf1b6e46866581aecae5cc38fb4235dea2"
 dependencies = [
  "libc",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "sodalite"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41784a359d15c58bba298cccb7f30a847a1a42d0620c9bdaa0aa42fdb3c280e0"
+dependencies = [
+ "index-fixed",
 ]
 
 [[package]]
@@ -6594,7 +6623,7 @@ dependencies = [
  "schnorrkel",
  "secrecy",
  "serde",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "sp-debug-derive",
  "sp-externalities",
  "sp-runtime-interface",
@@ -7161,6 +7190,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "substrate-stellar-sdk"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f82b27475e1d4adb2b7e04dbd6f015c3a2fd64d5cf68c946a9fb24f2d2a30226"
+dependencies = [
+ "base64 0.13.0",
+ "lazy_static",
+ "sha2 0.9.5",
+ "sodalite",
+ "sp-std",
+ "substrate-stellar-xdr",
+]
+
+[[package]]
+name = "substrate-stellar-xdr"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "310daf0a08d12d9e45a8207aa37edd1000906124ebb6c5bc27e6e30f8def7f0a"
+dependencies = [
+ "base64 0.13.0",
+ "sp-std",
+]
+
+[[package]]
 name = "substrate-wasm-builder"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7322,7 +7375,7 @@ dependencies = [
  "pbkdf2 0.4.0",
  "rand 0.7.3",
  "rustc-hash",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "thiserror",
  "unicode-normalization",
  "zeroize",
@@ -8147,7 +8200,7 @@ dependencies = [
  "libc",
  "log",
  "serde",
- "sha2 0.9.3",
+ "sha2 0.9.5",
  "toml",
  "winapi 0.3.9",
  "zstd",
