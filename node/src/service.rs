@@ -162,7 +162,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         // Typically these keys should be inserted with RPC calls to `author_insertKey`.
         sp_keystore::SyncCryptoStore::sr25519_generate_new(
             &*keystore,
-            node_template_runtime::pallet_stellar_watch::KEY_TYPE,
+            node_template_runtime::pallet_stellar_bridge::KEY_TYPE,
             Some("//Alice"),
         )
         .expect("Creating key with account Alice should succeed.");
