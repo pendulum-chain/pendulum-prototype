@@ -1,26 +1,20 @@
 //! A PoC offchain worker that fetches data from Stellar Horizon Servers
 
 #![cfg_attr(not(feature = "std"), no_std)]
-mod string;
 mod horizon;
+mod string;
 
 use codec::{Decode, Encode};
 
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 
-use frame_system::{
-    offchain::{
-        SignedPayload, SigningTypes,
-    },
-};
+use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
-use sp_runtime::{
-    RuntimeDebug,
-};
+use sp_runtime::RuntimeDebug;
 use sp_std::{prelude::*, str};
 
-use serde::{Deserialize};
+use serde::Deserialize;
 use string::String;
 
 use pallet_balances::{Config as BalancesConfig, Pallet as BalancesPallet};
@@ -98,13 +92,13 @@ pub use pallet::*;
 // `construct_runtime`.
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_support::dispatch::{DispatchResultWithPostInfo};
+    use super::*;
+    use frame_support::dispatch::DispatchResultWithPostInfo;
     use frame_system::offchain::SendUnsignedTransaction;
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
-    use sp_runtime::offchain::Duration;
     use sp_runtime::offchain::http::Request;
     use sp_runtime::offchain::storage::StorageValueRef;
-	use super::*;
+    use sp_runtime::offchain::Duration;
 
     #[pallet::config]
     pub trait Config:
@@ -122,11 +116,11 @@ pub mod pallet {
     }
 
     /// Events are a simple means of reporting specific conditions and
-	/// circumstances that have happened that users, Dapps and/or chain explorers would find
-	/// interesting and otherwise difficult to detect.
-	#[pallet::event]
-	/// This attribute generate the function `deposit_event` to deposit one of this pallet event,
-	/// it is optional, it is also possible to provide a custom implementation.
+    /// circumstances that have happened that users, Dapps and/or chain explorers would find
+    /// interesting and otherwise difficult to detect.
+    #[pallet::event]
+    /// This attribute generate the function `deposit_event` to deposit one of this pallet event,
+    /// it is optional, it is also possible to provide a custom implementation.
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     // #[pallet::generate_withdrawal(pub(super) fn withdrawal_event)]
     pub enum Event<T: Config> {
@@ -138,30 +132,30 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+    #[pallet::generate_store(pub(super) trait Store)]
+    pub struct Pallet<T>(_);
 
     // Pallet implements [`Hooks`] trait to define some logic to execute in some context.
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		// `on_initialize` is executed at the beginning of the block before any extrinsic are
-		// dispatched.
-		//
-		// This function must return the weight consumed by `on_initialize` and `on_finalize`.
-		fn on_initialize(_n: T::BlockNumber) -> Weight {
-			// Anything that needs to be done at the start of the block.
-			// We don't do anything here.
-			0
-		}
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        // `on_initialize` is executed at the beginning of the block before any extrinsic are
+        // dispatched.
+        //
+        // This function must return the weight consumed by `on_initialize` and `on_finalize`.
+        fn on_initialize(_n: T::BlockNumber) -> Weight {
+            // Anything that needs to be done at the start of the block.
+            // We don't do anything here.
+            0
+        }
 
-		// `on_finalize` is executed at the end of block after all extrinsic are dispatched.
-		fn on_finalize(_n: T::BlockNumber) {
-			// Perform necessary data/state clean up here.
-		}
+        // `on_finalize` is executed at the end of block after all extrinsic are dispatched.
+        fn on_finalize(_n: T::BlockNumber) {
+            // Perform necessary data/state clean up here.
+        }
 
-		// A runtime code run after every block and have access to extended set of APIs.
-		//
-		// For instance you can generate extrinsics for the upcoming produced block.
+        // A runtime code run after every block and have access to extended set of APIs.
+        //
+        // For instance you can generate extrinsics for the upcoming produced block.
         fn offchain_worker(_n: T::BlockNumber) {
             debug::info!("Hello from an offchain worker 👋");
 
@@ -172,22 +166,33 @@ pub mod pallet {
                 Self::handle_new_transaction(&transactions[0].id);
             }
         }
-	}
+    }
 
     #[pallet::call]
-	impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T> {
         // This is your public interface. Be extremely careful.
         #[pallet::weight(10000)]
-        pub fn submit_deposit_unsigned_with_signed_payload(origin: OriginFor<T>, payload: DepositPayload<T::AccountId, T::Public, T::Balance>,
-            _signature: T::Signature) -> DispatchResultWithPostInfo
-        {
+        pub fn submit_deposit_unsigned_with_signed_payload(
+            origin: OriginFor<T>,
+            payload: DepositPayload<T::AccountId, T::Public, T::Balance>,
+            _signature: T::Signature,
+        ) -> DispatchResultWithPostInfo {
             let _ = ensure_none(origin)?;
 
             // FIXME: Verify signature
             // ~~we don't need to verify the signature here because it has been verified in
             //   `validate_unsigned` function when sending out the unsigned tx.~~
-            let DepositPayload { amount, destination, signed_by } = payload;
-            debug::info!("submit_deposit_unsigned_with_signed_payload: ({:?}, {:?}, {:?})", amount, destination, signed_by);
+            let DepositPayload {
+                amount,
+                destination,
+                signed_by,
+            } = payload;
+            debug::info!(
+                "submit_deposit_unsigned_with_signed_payload: ({:?}, {:?}, {:?})",
+                amount,
+                destination,
+                signed_by
+            );
 
             let imbalance = <BalancesPallet<T, _>>::deposit_creating(&destination, amount);
             drop(imbalance);
@@ -197,9 +202,11 @@ pub mod pallet {
         }
 
         #[pallet::weight(100000)]
-        pub fn withdraw_to_stellar(origin: OriginFor<T>, _amount: T::Balance,
-            _signature: T::Signature) -> DispatchResultWithPostInfo
-        {
+        pub fn withdraw_to_stellar(
+            origin: OriginFor<T>,
+            _amount: T::Balance,
+            _signature: T::Signature,
+        ) -> DispatchResultWithPostInfo {
             let _pendulum_address = ensure_signed(origin)?;
 
             // TODO: Deduct amount from account
@@ -222,7 +229,8 @@ pub mod pallet {
             debug::info!("Sending request to: {}", request_url.as_str());
 
             let request = Request::get(request_url.as_str());
-            let timeout = sp_io::offchain::timestamp().add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+            let timeout =
+                sp_io::offchain::timestamp().add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
             let pending = request
                 .deadline(timeout)
@@ -301,10 +309,8 @@ pub mod pallet {
 
             let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
                 match last_stored_tx_id {
-                    Some(Some(value)) if value == *latest_tx_id_utf8 => {
-                        Err(UP_TO_DATE)
-                    },
-                    _ => Ok(latest_tx_id_utf8.clone())
+                    Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
+                    _ => Ok(latest_tx_id_utf8.clone()),
                 }
             });
 
@@ -325,14 +331,14 @@ pub mod pallet {
 
                         match Self::offchain_unsigned_tx_signed_payload(amount, destination) {
                             Err(_) => debug::warn!("Sending the tx failed."),
-                            Ok(_) => ()
+                            Ok(_) => (),
                         }
                     }
-                },
+                }
                 // The transaction id is the same as before.
                 Err(UP_TO_DATE) => {
                     debug::info!("Already up to date");
-                },
+                }
                 // We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
                 // most likely executed the same logic and succeeded at writing to storage.
                 // We don't do anyhting by now, but ideally we should queue transaction ids for processing.
