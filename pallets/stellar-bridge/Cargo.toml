@@ -24,6 +24,11 @@ pallet-balances = { version = '3.0.0', default-features = false }
 pallet-transaction-payment = { version = '3.0.0', default-features = false }
 substrate-stellar-sdk = { version = '0.1.4', default-features = false }
 
+orml-currencies = {default-features = false, version = '0.4.0'}
+orml-tokens = {default-features = false, version = "0.4.0"}
+orml-traits = { default-features = false, version = '0.4.0' }
+orml-utilities = { default-features = false, version = '0.4.0' }
+
 [features]
 default = ['std']
 std = [
@@ -33,5 +38,9 @@ std = [
 	"pallet-balances/std",
 	"sp-io/std",
 	"sp-runtime/std",
-	"sp-std/std"
+	"sp-std/std",
+	'orml-currencies/std',
+	'orml-tokens/std',
+	'orml-traits/std',
+	'orml-utilities/std'
 ]

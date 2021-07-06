@@ -6,25 +6,33 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-mod stellar_assets;
+use codec::{Decode, Encode};
+
+use serde::{Deserialize, Serialize};
 
 use pallet_grandpa::fg_primitives;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, Encode, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::traits::{
     AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify,
 };
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiAddress, MultiSignature, SaturatedConversion,
+    traits::Zero,
+    ApplyExtrinsicResult, MultiAddress, MultiSignature,
+    SaturatedConversion, RuntimeDebug
 };
+
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+
+use orml_currencies::BasicCurrencyAdapter;
+use orml_traits::parameter_type_with_key;
 
 use hex_literal;
 
@@ -67,6 +75,8 @@ pub type AccountIndex = u32;
 /// Balance of an account.
 pub type Balance = u128;
 
+pub type Amount = i128;
+
 /// Index of a transaction in the chain.
 pub type Index = u32;
 
@@ -75,6 +85,13 @@ pub type Hash = sp_core::H256;
 
 /// Digest item type.
 pub type DigestItem = generic::DigestItem<Hash>;
+
+#[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, RuntimeDebug, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub enum CurrencyId {
+	Native,
+	USDC
+}
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -273,6 +290,34 @@ impl pallet_sudo::Config for Runtime {
     type Call = Call;
 }
 
+impl orml_tokens::Config for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type Amount = Amount;
+	type CurrencyId = CurrencyId;
+	type WeightInfo = ();
+	type ExistentialDeposits = ExistentialDeposits;
+	type OnDust = ();
+}
+
+parameter_type_with_key! {
+	pub ExistentialDeposits: |_currency_id: CurrencyId| -> Balance {
+		Zero::zero()
+	};
+}
+
+parameter_types! {
+	pub const GetNativeCurrencyId: CurrencyId = CurrencyId::Native;
+}
+
+impl orml_currencies::Config for Runtime {
+	type Event = Event;
+	type MultiCurrency = Tokens;
+	type NativeCurrency = BasicCurrencyAdapter<Runtime, Balances, Amount, BlockNumber>;
+	type GetNativeCurrencyId = GetNativeCurrencyId;
+	type WeightInfo = ();
+}
+
 pub const XLM: Balance = 10_000_000;
 
 parameter_types! {
@@ -284,20 +329,6 @@ parameter_types! {
     pub const GatewayEscrowAccount: &'static str = "GAIMY7QQDWDQLX3KH6KFR25JLRJS4VGXFKLTRK66MPI6VPU3YDOPS6KQ";
     pub const GatewayMockedAmount: Balance = 1e18 as Balance;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
-}
-
-impl pallet_assets::Config for Runtime {
-    type Event = Event;
-    type Balance = u64;
-    type AssetId = stellar_assets::StellarAsset;
-    type Currency = Balances;
-    type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-    type AssetDepositBase = AssetDeposit;
-    type AssetDepositPerZombie = AssetDeposit;
-    type StringLimit = StringLimit;
-    type MetadataDepositBase = MetadataDepositBase;
-    type MetadataDepositPerByte = MetadataDepositPerByte;
-    type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
 }
 
 /// Configure the pallet-template in pallets/template.
@@ -387,11 +418,16 @@ construct_runtime!(
         Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
+
+        // ORML modules for handling Multi Currency
+        Currencies: orml_currencies::{Module, Call, Event<T>},
+		Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
+
         // Include stellar-watch pallet.
         StellarBridge: pallet_stellar_bridge::{Module, Call, Storage, Event<T>, ValidateUnsigned},
+
         // Include the custom logic from the pallet-template in the runtime.
         TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
-        Assets: pallet_assets::{Module, Call, Storage, Event<T>},
     }
 );
 
