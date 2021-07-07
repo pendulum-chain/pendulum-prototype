@@ -1,6 +1,7 @@
 //! A PoC offchain worker that fetches data from Stellar Horizon Servers
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
 mod horizon;
 mod string;
 

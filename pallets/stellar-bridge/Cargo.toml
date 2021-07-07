@@ -32,8 +32,11 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-balances/std",
+	"sp-arithmetic/std",
+	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-tracing/std",
+	"sp-keystore/std",
 ]

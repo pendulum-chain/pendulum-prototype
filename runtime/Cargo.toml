@@ -72,6 +72,7 @@ std = [
     'pallet-balances/std',
     'pallet-grandpa/std',
     'pallet-randomness-collective-flip/std',
+    'pallet-stellar-bridge/std',
     'pallet-sudo/std',
     'pallet-timestamp/std',
     'pallet-transaction-payment-rpc-runtime-api/std',
