@@ -98,9 +98,7 @@ pub mod pallet {
     use frame_system::offchain::SendUnsignedTransaction;
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
     use sp_runtime::offchain::http::Request;
-    use sp_runtime::offchain::storage::{
-        MutateStorageError, StorageRetrievalError, StorageValueRef,
-    };
+    use sp_runtime::offchain::storage::StorageValueRef;
     use sp_runtime::offchain::Duration;
 
     #[pallet::config]
@@ -308,16 +306,14 @@ pub mod pallet {
             let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
 
             let prev_read = id_storage.get::<Vec<u8>>();
-            let initial = !matches!(prev_read, Ok(Some(_)));
+            let initial = !matches!(prev_read, Some(Some(_)));
 
-            let res = id_storage.mutate(
-                |last_stored_tx_id: Result<Option<Vec<u8>>, StorageRetrievalError>| {
-                    match last_stored_tx_id {
-                        Ok(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
-                        _ => Ok(latest_tx_id_utf8.clone()),
-                    }
-                },
-            );
+            let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
+                match last_stored_tx_id {
+                    Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
+                    _ => Ok(latest_tx_id_utf8.clone()),
+                }
+            });
 
             // The result of `mutate` call will give us a nested `Result` type.
             // The first one matches the return of the closure passed to `mutate`, i.e.
@@ -327,7 +323,7 @@ pub mod pallet {
             // written to in the meantime.
             match res {
                 // The value has been set correctly.
-                Ok(saved_tx_id) => {
+                Ok(Ok(saved_tx_id)) => {
                     if !initial {
                         sp_tracing::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
@@ -341,13 +337,13 @@ pub mod pallet {
                     }
                 }
                 // The transaction id is the same as before.
-                Err(MutateStorageError::ValueFunctionFailed(UP_TO_DATE)) => {
+                Err(UP_TO_DATE) => {
                     sp_tracing::info!("Already up to date");
                 }
                 // We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
                 // most likely executed the same logic and succeeded at writing to storage.
                 // We don't do anyhting by now, but ideally we should queue transaction ids for processing.
-                Err(MutateStorageError::ConcurrentModification(_)) => {
+                Ok(Err(_)) => {
                     sp_tracing::info!("Failed to save last transaction id.");
                 }
             }
