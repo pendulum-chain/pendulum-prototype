@@ -46,7 +46,7 @@ sp-std = { default-features = false, git = 'https://github.com/paritytech/substr
 sp-tracing = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 sp-transaction-pool = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 sp-version = { default-features = false, git = 'https://github.com/paritytech/substrate' }
-substrate-stellar-sdk = { path = '../../substrate-stellar-sdk', default-features = false }
+substrate-stellar-sdk = { version = '0.1.6', default-features = false }
 
 pallet-stellar-bridge = { version = "0.1.0", default-features = false, path = "../pallets/stellar-bridge" }
 

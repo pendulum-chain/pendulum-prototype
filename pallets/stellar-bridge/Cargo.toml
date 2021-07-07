@@ -23,7 +23,7 @@ sp-tracing = { git = 'https://github.com/paritytech/substrate', default-features
 sp-keystore = { git = 'https://github.com/paritytech/substrate', optional = true }
 pallet-balances = { git = 'https://github.com/paritytech/substrate', default-features = false }
 pallet-transaction-payment = { git = 'https://github.com/paritytech/substrate', default-features = false }
-substrate-stellar-sdk = { path = '../../../substrate-stellar-sdk', default-features = false }
+substrate-stellar-sdk = { version = '0.1.6', default-features = false }
 
 [features]
 default = ['std']
