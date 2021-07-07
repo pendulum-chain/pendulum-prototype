@@ -49,6 +49,7 @@ sp-core = { git = 'https://github.com/paritytech/substrate' }
 sp-finality-grandpa = { git = 'https://github.com/paritytech/substrate' }
 sp-inherents = { git = 'https://github.com/paritytech/substrate' }
 sp-runtime = { git = 'https://github.com/paritytech/substrate' }
+sp-timestamp = { git = 'https://github.com/paritytech/substrate' }
 sp-transaction-pool = { git = 'https://github.com/paritytech/substrate' }
 substrate-frame-rpc-system = { git = 'https://github.com/paritytech/substrate' }
 
