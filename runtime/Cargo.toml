@@ -43,6 +43,7 @@ sp-offchain = { default-features = false, git = 'https://github.com/paritytech/s
 sp-runtime = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 sp-session = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 sp-std = { default-features = false, git = 'https://github.com/paritytech/substrate' }
+sp-tracing = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 sp-transaction-pool = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 sp-version = { default-features = false, git = 'https://github.com/paritytech/substrate' }
 substrate-stellar-sdk = { path = '../../substrate-stellar-sdk', default-features = false }
@@ -85,6 +86,7 @@ std = [
     'sp-runtime/std',
     'sp-session/std',
     'sp-std/std',
+    'sp-tracing/std',
     'sp-transaction-pool/std',
     'sp-version/std',
 ]
