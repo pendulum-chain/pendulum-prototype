@@ -4005,6 +4005,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "sp-std",
+ "sp-tracing",
  "substrate-stellar-sdk",
 ]
 

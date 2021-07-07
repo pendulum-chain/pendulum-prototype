@@ -19,6 +19,7 @@ sp-core = { git = 'https://github.com/paritytech/substrate', default-features = 
 sp-io = { git = 'https://github.com/paritytech/substrate', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate', default-features = false }
 sp-std = { git = 'https://github.com/paritytech/substrate', default-features = false }
+sp-tracing = { git = 'https://github.com/paritytech/substrate', default-features = false }
 sp-keystore = { git = 'https://github.com/paritytech/substrate', optional = true }
 pallet-balances = { git = 'https://github.com/paritytech/substrate', default-features = false }
 pallet-transaction-payment = { git = 'https://github.com/paritytech/substrate', default-features = false }
@@ -33,5 +34,6 @@ std = [
 	"pallet-balances/std",
 	"sp-io/std",
 	"sp-runtime/std",
-	"sp-std/std"
+	"sp-std/std",
+	"sp-tracing/std",
 ]

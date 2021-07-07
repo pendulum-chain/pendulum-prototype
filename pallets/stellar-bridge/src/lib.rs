@@ -157,7 +157,7 @@ pub mod pallet {
         //
         // For instance you can generate extrinsics for the upcoming produced block.
         fn offchain_worker(_n: T::BlockNumber) {
-            debug::info!("Hello from an offchain worker 👋");
+            sp_tracing::info!("Hello from an offchain worker 👋");
 
             let res = Self::fetch_n_parse();
             let transactions = &res.unwrap()._embedded.records;
@@ -187,7 +187,7 @@ pub mod pallet {
                 destination,
                 signed_by,
             } = payload;
-            debug::info!(
+            sp_tracing::info!(
                 "submit_deposit_unsigned_with_signed_payload: ({:?}, {:?}, {:?})",
                 amount,
                 destination,
@@ -226,7 +226,7 @@ pub mod pallet {
                 + T::GatewayEscrowAccount::get()
                 + "/transactions?order=desc&limit=1";
 
-            debug::info!("Sending request to: {}", request_url.as_str());
+            sp_tracing::info!("Sending request to: {}", request_url.as_str());
 
             let request = Request::get(request_url.as_str());
             let timeout =
@@ -243,7 +243,7 @@ pub mod pallet {
                 .map_err(|_| Error::HttpFetchingError)?;
 
             if response.code != 200 {
-                debug::error!("Unexpected HTTP request status code: {}", response.code);
+                sp_tracing::error!("Unexpected HTTP request status code: {}", response.code);
                 return Err(Error::HttpFetchingError);
             }
 
@@ -255,7 +255,7 @@ pub mod pallet {
         /// Fetch from remote and deserialize to HorizonResponse
         fn fetch_n_parse() -> Result<HorizonResponse, Error<T>> {
             let resp_bytes = Self::fetch_from_remote().map_err(|e| {
-                debug::error!("fetch_from_remote error: {:?}", e);
+                sp_tracing::error!("fetch_from_remote error: {:?}", e);
                 Error::HttpFetchingError
             })?;
 
@@ -289,12 +289,12 @@ pub mod pallet {
                 Call::submit_deposit_unsigned_with_signed_payload,
             ) {
                 return res.map_err(|_| {
-                    debug::error!("Failed in offchain_unsigned_tx_signed_payload");
+                    sp_tracing::error!("Failed in offchain_unsigned_tx_signed_payload");
                     Error::OffchainUnsignedTxSignedPayloadError
                 });
             } else {
                 // The case of `None`: no account is available for sending
-                debug::error!("No local account available");
+                sp_tracing::error!("No local account available");
                 Err(Error::NoLocalAcctForSigning)
             }
         }
@@ -324,26 +324,26 @@ pub mod pallet {
                 // The value has been set correctly.
                 Ok(Ok(saved_tx_id)) => {
                     if !initial {
-                        debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
+                        sp_tracing::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
                         let amount = T::GatewayMockedAmount::get();
                         let destination = T::GatewayMockedDestination::get();
 
                         match Self::offchain_unsigned_tx_signed_payload(amount, destination) {
-                            Err(_) => debug::warn!("Sending the tx failed."),
+                            Err(_) => sp_tracing::warn!("Sending the tx failed."),
                             Ok(_) => (),
                         }
                     }
                 }
                 // The transaction id is the same as before.
                 Err(UP_TO_DATE) => {
-                    debug::info!("Already up to date");
+                    sp_tracing::info!("Already up to date");
                 }
                 // We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
                 // most likely executed the same logic and succeeded at writing to storage.
                 // We don't do anyhting by now, but ideally we should queue transaction ids for processing.
                 Ok(Err(_)) => {
-                    debug::info!("Failed to save last transaction id.");
+                    sp_tracing::info!("Failed to save last transaction id.");
                 }
             }
         }
