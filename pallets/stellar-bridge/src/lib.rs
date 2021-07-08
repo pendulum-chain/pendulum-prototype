@@ -1,9 +1,12 @@
 //! A PoC offchain worker that fetches data from Stellar Horizon Servers
 
 #![cfg_attr(not(feature = "std"), no_std)]
-mod horizon;
-mod string;
 
+extern crate alloc;
+
+mod horizon;
+
+use alloc::string::String;
 use codec::{Decode, Encode};
 
 use frame_support::pallet_prelude::*;
@@ -19,7 +22,6 @@ use sp_std::{prelude::*, str};
 use orml_traits::{MultiCurrency, MultiReservableCurrency};
 
 use serde::Deserialize;
-use string::String;
 
 use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
 use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
