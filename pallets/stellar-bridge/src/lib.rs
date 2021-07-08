@@ -358,9 +358,6 @@ pub mod pallet {
                                         }
                                     }
                                     
-                                    let asset = xdr::Asset::from(payment_op.asset.clone());
-                                    debug::info!("XDR Asset {:#?}", asset);
-
                                     if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("Asset {:#?}", asset_code);

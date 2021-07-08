@@ -322,7 +322,6 @@ impl orml_currencies::Config for Runtime {
 	type WeightInfo = ();
 }
 
-
 pub const XLM: Balance = 10_000_000;
 
 parameter_types! {
