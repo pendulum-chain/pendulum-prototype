@@ -17,3 +17,17 @@ Based on Substrate. Repository based on [substrate-developer-hub/substrate-node-
 3. Build and run: `cargo run --release -- --dev --tmp`
 
 For more details see [substrate-developer-hub/substrate-node-template](https://github.com/substrate-developer-hub/substrate-node-template).
+
+## Build
+
+1. `docker build . -t eu.gcr.io/satoshipay-206315/pendulum/node:latest`
+2. `docker push eu.gcr.io/satoshipay-206315/pendulum/node:latest`
+
+## Deploy
+
+1. Open the [Google Cloud Run console](https://console.cloud.google.com/run)
+2. Open the `pendulum-demo-node` service
+3. Choose `Edit and deploy new version`
+4. Change the `Container image URL`, pick the latest container image
+5. Deploy
+
