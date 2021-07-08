@@ -3940,6 +3940,7 @@ dependencies = [
 name = "pallet-stellar-bridge"
 version = "0.1.0"
 dependencies = [
+ "base64 0.13.0",
  "frame-support",
  "frame-system",
  "orml-currencies",
@@ -3959,6 +3960,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "substrate-stellar-sdk",
+ "substrate-stellar-xdr",
 ]
 
 [[package]]
@@ -7261,9 +7263,9 @@ dependencies = [
 
 [[package]]
 name = "substrate-stellar-sdk"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f82b27475e1d4adb2b7e04dbd6f015c3a2fd64d5cf68c946a9fb24f2d2a30226"
+checksum = "ffc1ba09e528233f8e377f8c768ca7b13f974ee6444e967eb874f4fb64f85727"
 dependencies = [
  "base64 0.13.0",
  "lazy_static",
@@ -7275,9 +7277,9 @@ dependencies = [
 
 [[package]]
 name = "substrate-stellar-xdr"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "310daf0a08d12d9e45a8207aa37edd1000906124ebb6c5bc27e6e30f8def7f0a"
+checksum = "68d258a08d467d492bcaab0414be2a0570deb2f14bf27b8ca29e00fdbe217396"
 dependencies = [
  "base64 0.13.0",
  "sp-std",

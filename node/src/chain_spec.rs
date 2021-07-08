@@ -1,6 +1,6 @@
 use node_template_runtime::{
     AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-    SystemConfig, WASM_BINARY,
+    SystemConfig, WASM_BINARY, TokensConfig, CurrencyId
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -160,5 +160,15 @@ fn testnet_genesis(
             // Assign network admin rights.
             key: root_key,
         }),
+        orml_tokens: Some(TokensConfig {
+			endowed_accounts: endowed_accounts
+			.iter()
+			.flat_map(|x| {
+				vec![
+					(x.clone(), CurrencyId::USDC, 10u128.pow(16)),
+				]
+			})
+			.collect(),
+		}),
     }
 }

@@ -8,6 +8,7 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
 
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 use pallet_grandpa::fg_primitives;
@@ -31,7 +32,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-use orml_currencies::BasicCurrencyAdapter;
+use orml_currencies::{BasicCurrencyAdapter, Currency};
 use orml_traits::parameter_type_with_key;
 
 use hex_literal;
@@ -91,6 +92,12 @@ pub type DigestItem = generic::DigestItem<Hash>;
 pub enum CurrencyId {
 	Native,
 	USDC
+}
+
+impl Default for CurrencyId {
+    fn default() -> Self {
+        CurrencyId::Native
+    }
 }
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
@@ -318,6 +325,7 @@ impl orml_currencies::Config for Runtime {
 	type WeightInfo = ();
 }
 
+
 pub const XLM: Balance = 10_000_000;
 
 parameter_types! {
@@ -327,7 +335,8 @@ parameter_types! {
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GAIMY7QQDWDQLX3KH6KFR25JLRJS4VGXFKLTRK66MPI6VPU3YDOPS6KQ";
-    pub const GatewayMockedAmount: Balance = 1e18 as Balance;
+    pub const GatewayMockedAmount: Balance = 1e12 as Balance;
+    pub const GatewayMockedCurrency: CurrencyId = CurrencyId::USDC;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
 }
 
@@ -341,8 +350,10 @@ impl pallet_stellar_bridge::Config for Runtime {
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
+    type Currency = Currencies;
     type GatewayEscrowAccount = GatewayEscrowAccount;
     type GatewayMockedAmount = GatewayMockedAmount;
+    type GatewayMockedCurrency = GatewayMockedCurrency;
     type GatewayMockedDestination = GatewayMockedDestination;
 }
 
