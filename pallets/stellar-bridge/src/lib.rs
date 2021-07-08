@@ -19,7 +19,8 @@ use orml_traits::{MultiCurrency, MultiReservableCurrency};
 use serde::Deserialize;
 use string::String;
 
-// use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
+use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
+use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
 
 use pallet_transaction_payment::Config as PaymentConfig;
 
@@ -170,10 +171,8 @@ pub mod pallet {
             let res = Self::fetch_n_parse();
             let transactions = &res.unwrap()._embedded.records;
 
-            let latest_tx_id_utf8 = &transactions[0].id;
-
             if transactions.len() > 0 {
-                Self::handle_new_transaction(latest_tx_id_utf8);
+                Self::handle_new_transaction(&transactions[0]);
             }
         }
     }
@@ -304,8 +303,10 @@ pub mod pallet {
             }
         }
 
-        fn handle_new_transaction(latest_tx_id_utf8: &Vec<u8>) {
+        fn handle_new_transaction(tx: &Transaction) {
             const UP_TO_DATE: () = ();
+
+            let latest_tx_id_utf8 = &tx.id;
 
             let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
 
@@ -323,14 +324,61 @@ pub mod pallet {
                     if !initial {
                         debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
-                        let amount = T::GatewayMockedAmount::get();
+                        // let amount = T::GatewayMockedAmount::get();
+                        let mut amount: Option<BalanceOf<T>> = None;
                         let destination = T::GatewayMockedDestination::get();
                         let currency = T::GatewayMockedCurrency::get();
+                        
+                        // Decode transaction to Base64 and then to Stellar XDR to get transaction details
+                        let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
+                        let tx_envelope = xdr::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
 
-                        match Self::offchain_unsigned_tx_signed_payload(currency, amount, destination) {
-                            Err(_) => debug::warn!("Sending the tx failed."),
-                            Ok(_) => (),
+                        if let xdr::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+
+                            // Source account will be our destination account
+                            if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
+                                let pubkey = StellarPublicKey::from_binary(key).to_encoding();
+                                match str::from_utf8(&pubkey) {
+                                    Ok(stellar_account_id) => debug::info!("✔️  Source account is a valid Stellar account {:?}", stellar_account_id),
+                                    Err(_err) => debug::error!("❌  Source account is a not a valid Stellar account.")
+                                }
+                            }
+
+                            for op in env.tx.operations.get_vec() {
+                                if let xdr::OperationBody::Payment(payment_op) = &op.body {
+
+                                    let dest_account = xdr::MuxedAccount::from(payment_op.destination.clone());
+                                    debug::info!("Muxed account {:#?}", dest_account);
+
+                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest_unwrapped) = payment_op.destination {
+                                        let pubkey = StellarPublicKey::from_binary(dest_unwrapped).to_encoding();
+                                        let pubkey_str = str::from_utf8(&pubkey).unwrap();
+                                        if pubkey_str.eq(T::GatewayEscrowAccount::get()) {
+                                            debug::info!("✔️  Destination account is the escrow account {:?}", pubkey_str);
+                                        }
+                                    }
+                                    
+                                    let asset = xdr::Asset::from(payment_op.asset.clone());
+                                    debug::info!("XDR Asset {:#?}", asset);
+
+                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
+                                        let asset_code = str::from_utf8(&code.asset_code).ok();
+                                        debug::info!("Asset {:#?}", asset_code);
+                                        amount = Some(<BalanceOf<T>>::from(payment_op.amount as u32));
+                                        debug::info!("Amount {:#?}", amount);
+                                    }
+                                }
+                            }
                         }
+                        match amount {
+                            Some(val) => 
+                                match Self::offchain_unsigned_tx_signed_payload(currency, val, destination) {
+                                    Err(_) => debug::warn!("Sending the tx failed."),
+                                    Ok(_) => (),
+                                },
+                            None => ()
+                        }
+
                     }
                 }
                 Err(UP_TO_DATE) => {
