@@ -36,8 +36,10 @@ use orml_traits::parameter_type_with_key;
 
 use hex_literal;
 
+mod address_conv;
 mod balance_conv;
 
+use address_conv::AddressConversion as StellarAddressConversion;
 use balance_conv::BalanceConversion as StellarBalanceConversion;
 
 // A few exports that help ease life for downstream crates.
@@ -58,6 +60,8 @@ pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
+
+use substrate_stellar_sdk::keypair::Keypair;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -335,6 +339,7 @@ parameter_types! {
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
+    pub GatewayEscrowKeypair: Keypair = Keypair::from_encoded_secret("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
     pub const GatewayMockedAmount: Balance = 1e12 as Balance;
     pub const GatewayMockedCurrencyUSDC: CurrencyId = CurrencyId::USDC;
     pub const GatewayMockedCurrencyEUR: CurrencyId = CurrencyId::EUR;
@@ -343,12 +348,14 @@ parameter_types! {
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
 impl pallet_stellar_bridge::Config for Runtime {
+    type AddressConversion = StellarAddressConversion;
     type BalanceConversion = StellarBalanceConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
     type Currency = Currencies;
     type GatewayEscrowAccount = GatewayEscrowAccount;
+    type GatewayEscrowKeypair = GatewayEscrowKeypair;
     type GatewayMockedAmount = GatewayMockedAmount;
     type GatewayMockedCurrencyUSDC = GatewayMockedCurrencyUSDC;
     type GatewayMockedCurrencyEUR = GatewayMockedCurrencyEUR;

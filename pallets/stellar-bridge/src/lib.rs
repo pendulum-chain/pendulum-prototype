@@ -15,8 +15,7 @@ use frame_system::pallet_prelude::*;
 use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
 use sp_runtime::traits::StaticLookup;
-use sp_runtime::RuntimeDebug;
-
+use sp_runtime::{MultiSignature, RuntimeDebug};
 use sp_std::{prelude::*, str};
 
 use orml_traits::{MultiCurrency, MultiReservableCurrency};
@@ -27,6 +26,8 @@ use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
 use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
 
 use pallet_transaction_payment::Config as PaymentConfig;
+
+use substrate_stellar_sdk as stellar;
 
 use self::horizon::*;
 
@@ -42,6 +43,8 @@ type CurrencyIdOf<T> =
 // pub use pallet::*;
 
 pub type Balance = u128;
+
+pub type Signature = MultiSignature;
 
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 
@@ -86,6 +89,13 @@ pub struct DepositPayload<Currency, AccountId, Public, Balance> {
     signed_by: Public,
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+pub struct WithdrawalPayload<Currency, Public, Balance> {
+    amount: Balance,
+    currency_id: Currency,
+    signed_by: Public,
+}
+
 impl<T: SigningTypes> SignedPayload<T>
     for DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>
 where
@@ -110,6 +120,7 @@ pub mod pallet {
     use sp_runtime::offchain::http::Request;
     use sp_runtime::offchain::storage::StorageValueRef;
     use sp_runtime::offchain::Duration;
+    use stellar::keypair::Keypair;
 
     #[pallet::config]
     pub trait Config:
@@ -124,11 +135,13 @@ pub mod pallet {
         /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// The mechanics of the ORML tokens  
+        /// The mechanics of the ORML tokens
         type Currency: MultiReservableCurrency<Self::AccountId>;
+        type AddressConversion: StaticLookup<Source = Self::AccountId, Target = stellar::keypair::PublicKey>;
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
 
         type GatewayEscrowAccount: Get<&'static str>;
+        type GatewayEscrowKeypair: Get<Keypair>;
         type GatewayMockedAmount: Get<BalanceOf<Self>>;
         type GatewayMockedCurrencyUSDC: Get<CurrencyIdOf<Self>>;
         type GatewayMockedCurrencyEUR: Get<CurrencyIdOf<Self>>;
@@ -219,13 +232,25 @@ pub mod pallet {
         #[pallet::weight(100000)]
         pub fn withdraw_to_stellar(
             origin: OriginFor<T>,
-            _amount: BalanceOf<T>,
-            _signature: T::Signature,
-        ) -> DispatchResultWithPostInfo {
-            let _pendulum_address = ensure_signed(origin)?;
+            currency_id: CurrencyIdOf<T>,
+            amount: BalanceOf<T>
+        ) -> DispatchResultWithPostInfo
+        {
+            let pendulum_account_id = ensure_signed(origin)?;
+            let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
 
-            // TODO: Deduct amount from account
-            // TODO: Create Stellar tx
+            debug::info!(
+                "withdraw_to_stellar: ({:?}, {:?}, {:?})",
+                currency_id,
+                amount,
+                stellar_address
+            );
+
+            let imbalance = T::Currency::withdraw(currency_id, &pendulum_account_id, amount)?;
+            drop(imbalance);
+
+            let _stellar_tx = Self::create_withdrawal_tx(&pendulum_account_id, &stellar_address, amount);
+
             // TODO: Sign & submit Stellar tx
             // TODO: Retry submission if necessary
 
@@ -236,6 +261,10 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        fn create_withdrawal_tx(_account: &T::AccountId, _stellar_addr: &stellar::keypair::PublicKey, _amount: BalanceOf<T>) {
+            todo!();
+        }
+
         fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
             let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
                 + T::GatewayEscrowAccount::get()
