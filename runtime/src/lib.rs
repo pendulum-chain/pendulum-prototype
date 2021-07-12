@@ -333,7 +333,7 @@ parameter_types! {
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
     pub const GatewayMockedAmount: Balance = 1e12 as Balance;
     pub const GatewayMockedCurrency: CurrencyId = CurrencyId::USDC;
-    pub GatewayMockedDestination: AccountId = hex_literal::hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
+    pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
