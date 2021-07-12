@@ -34,10 +34,19 @@ To be able to use the Polkadot JS explorer properly, some types need to be added
     ]
   },
   "CurrencyIdOf": "CurrencyId",
+  "Currency": "CurrencyId",
+  "BalanceOf": "Balance",
   "Amount": "i128",
-  "AmountOf": "Amount"
-}
-```
+  "AmountOf": "Amount",
+  "DepositPayload": {
+    "_struct": {
+      "currency_id": "CurrencyId",
+      "amount": "Balance",
+      "destination": "AccountId",
+      "signed_by": "AccountId"
+    }
+  }
+}```
 
 
 ---
