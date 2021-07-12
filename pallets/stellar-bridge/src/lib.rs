@@ -45,7 +45,7 @@ pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
 
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
-
+const DEPOSIT_FACTOR: u32 = 100_000_000;
 
 /// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrapper.
 /// We can utilize the supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
@@ -361,21 +361,16 @@ pub mod pallet {
                                     if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("Asset {:#?}", asset_code);
-                                        amount = Some(<BalanceOf<T>>::from(payment_op.amount as u32));
+                                        amount = Some(<BalanceOf<T>>::from((payment_op.amount * DEPOSIT_FACTOR) as u32 ));
                                         debug::info!("Amount {:#?}", amount);
                                     }
                                 }
                             }
                         }
-                        match amount {
-                            Some(val) => 
-                                match Self::offchain_unsigned_tx_signed_payload(currency, val, destination) {
-                                    Err(_) => debug::warn!("Sending the tx failed."),
-                                    Ok(_) => (),
-                                },
-                            None => ()
+                        match Self::offchain_unsigned_tx_signed_payload(currency, amount.unwrap(), destination) {
+                            Err(_) => debug::warn!("Sending the tx failed."),
+                            Ok(_) => (),
                         }
-
                     }
                 }
                 Err(UP_TO_DATE) => {
