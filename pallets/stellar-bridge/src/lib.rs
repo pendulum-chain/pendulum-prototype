@@ -28,6 +28,7 @@ use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
 use pallet_transaction_payment::Config as PaymentConfig;
 
 use substrate_stellar_sdk as stellar;
+use substrate_stellar_xdr::compound_types::LimitedVarArray;
 
 use self::horizon::*;
 
@@ -117,7 +118,7 @@ pub mod pallet {
     use frame_support::dispatch::DispatchResultWithPostInfo;
     use frame_system::offchain::SendUnsignedTransaction;
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
-    use sp_runtime::offchain::http::Request;
+    use sp_runtime::offchain::http::{Request, Response};
     use sp_runtime::offchain::storage::StorageValueRef;
     use sp_runtime::offchain::Duration;
     use stellar::keypair::Keypair;
@@ -146,6 +147,7 @@ pub mod pallet {
         type GatewayMockedCurrencyUSDC: Get<CurrencyIdOf<Self>>;
         type GatewayMockedCurrencyEUR: Get<CurrencyIdOf<Self>>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
+        type GatewayMockedStellarAsset: Get<stellar::xdr::Asset>;
     }
 
     #[pallet::event]
@@ -188,7 +190,7 @@ pub mod pallet {
         fn offchain_worker(_n: T::BlockNumber) {
             debug::info!("Hello from an offchain worker 👋");
 
-            let res = Self::fetch_n_parse();
+            let res = Self::fetch_latest_txs();
             let transactions = &res.unwrap()._embedded.records;
 
             if transactions.len() > 0 {
@@ -237,6 +239,8 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo
         {
             let pendulum_account_id = ensure_signed(origin)?;
+            let asset = T::GatewayMockedStellarAsset::get();
+            let escrow_address = T::GatewayEscrowAccount::get();
             let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
 
             debug::info!(
@@ -249,7 +253,8 @@ pub mod pallet {
             let imbalance = T::Currency::withdraw(currency_id, &pendulum_account_id, amount)?;
             drop(imbalance);
 
-            let _stellar_tx = Self::create_withdrawal_tx(&pendulum_account_id, &stellar_address, amount);
+            let seq_no = Self::fetch_latest_seq_no(escrow_address).map(|seq_no| seq_no + 1)?;
+            let _stellar_tx = Self::create_withdrawal_tx(&pendulum_account_id, &stellar_address, seq_no, asset, amount)?;
 
             // TODO: Sign & submit Stellar tx
             // TODO: Retry submission if necessary
@@ -261,18 +266,41 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn create_withdrawal_tx(_account: &T::AccountId, _stellar_addr: &stellar::keypair::PublicKey, _amount: BalanceOf<T>) {
-            todo!();
+        fn create_withdrawal_tx(_account: &T::AccountId, stellar_addr: &stellar::keypair::PublicKey, seq_num: u64, asset: stellar::xdr::Asset, amount: BalanceOf<T>) -> Result<stellar::xdr::Transaction, Error<T>> {
+            let memo = stellar::xdr::Memo::MemoNone;
+            let destination_addr = stellar_addr.get_binary();
+            let source_pubkey = stellar::keypair::PublicKey::from_encoding(T::GatewayEscrowAccount::get())
+                .map_err(|_| <Error<T>>::StellarAddressParsingError)?;
+            let source_addr = source_pubkey.get_binary();
+
+            let operations = LimitedVarArray::<_, 100>::new(vec![
+                stellar::xdr::Operation {
+                    body: stellar::xdr::OperationBody::Payment(
+                        stellar::xdr::PaymentOp {
+                            amount: T::BalanceConversion::lookup(amount).map_err(|_| <Error<T>>::BalanceConversionError)?,
+                            asset,
+                            destination: stellar::xdr::MuxedAccount::KeyTypeEd25519(*destination_addr)
+                        }
+                    ),
+                    source_account: None,
+                },
+            ]).map_err(|_| <Error<T>>::ExceedsMaximumLengthError)?;
+
+            Ok(stellar::xdr::Transaction {
+                ext: stellar::xdr::TransactionExt::V0,
+                fee: 10000,
+                memo,
+                operations,
+                seq_num: seq_num as i64,
+                source_account: stellar::xdr::MuxedAccount::KeyTypeEd25519(*source_addr),
+                time_bounds: None,
+            })
         }
 
-        fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
-            let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
-                + T::GatewayEscrowAccount::get()
-                + "/transactions?order=desc&limit=1";
+        fn fetch_from_remote(request_url: &str) -> Result<Response, Error<T>> {
+            debug::info!("Sending request to: {}", request_url);
 
-            debug::info!("Sending request to: {}", request_url.as_str());
-
-            let request = Request::get(request_url.as_str());
+            let request = Request::get(request_url);
             let timeout =
                 sp_io::offchain::timestamp().add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 
@@ -291,22 +319,47 @@ pub mod pallet {
                 return Err(Error::HttpFetchingError);
             }
 
-            let json_result: Vec<u8> = response.body().collect::<Vec<u8>>();
-
-            Ok(json_result)
+            Ok(response)
         }
 
-        /// Fetch from remote and deserialize to HorizonResponse
-        fn fetch_n_parse() -> Result<HorizonResponse, Error<T>> {
-            let resp_bytes = Self::fetch_from_remote().map_err(|e| {
-                debug::error!("fetch_from_remote error: {:?}", e);
-                Error::HttpFetchingError
-            })?;
+        fn fetch_latest_seq_no(stellar_addr: &str) -> Result<u64, Error<T>> {
+            let request_url = String::from("https://horizon-testnet.stellar.org/accounts/") + stellar_addr;
 
-            let resp_str = str::from_utf8(&resp_bytes).map_err(|_| Error::HttpFetchingError)?;
+            let response = Self::fetch_from_remote(request_url.as_str())
+                .map_err(|e| {
+                    debug::error!("fetch_latest_seq_no error: {:?}", e);
+                    Error::HttpFetchingError
+                })?;
+
+            let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
+            let resp_str = str::from_utf8(&json_bytes).map_err(|_| Error::HttpFetchingError)?;
 
             // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
-            let horizon_response: HorizonResponse =
+            let horizon_response: HorizonAccountResponse =
+                serde_json::from_str(&resp_str).map_err(|_| Error::HttpFetchingError)?;
+
+            String::from_utf8(horizon_response.sequence)
+                .map(|string| string.parse::<u64>().unwrap())
+                .map_err(|_| <Error<T>>::SeqNoParsingError)
+        }
+
+        /// Fetch recent transactions from remote and deserialize to HorizonResponse
+        fn fetch_latest_txs() -> Result<HorizonTransactionsResponse, Error<T>> {
+            let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
+                + T::GatewayEscrowAccount::get()
+                + "/transactions?order=desc&limit=1";
+
+            let response = Self::fetch_from_remote(request_url.as_str())
+                .map_err(|e| {
+                    debug::error!("fetch_latest_txs error: {:?}", e);
+                    Error::HttpFetchingError
+                })?;
+
+            let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
+            let resp_str = str::from_utf8(&json_bytes).map_err(|_| Error::HttpFetchingError)?;
+
+            // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
+            let horizon_response: HorizonTransactionsResponse =
                 serde_json::from_str(&resp_str).map_err(|_| Error::HttpFetchingError)?;
 
             Ok(horizon_response)
@@ -492,5 +545,17 @@ pub mod pallet {
 
         // Error returned when fetching remote info
         HttpFetchingError,
+
+        // Could not convert Pendulum amount into Stellar amount
+        BalanceConversionError,
+
+        // Stellar XDR array size error
+        ExceedsMaximumLengthError,
+
+        // Could not parse sequence no.
+        SeqNoParsingError,
+
+        // Could not parse Stellar public key
+        StellarAddressParsingError,
     }
 }

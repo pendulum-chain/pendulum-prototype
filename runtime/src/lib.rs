@@ -62,6 +62,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
 
 use substrate_stellar_sdk::keypair::Keypair;
+use substrate_stellar_sdk::xdr;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -344,6 +345,7 @@ parameter_types! {
     pub const GatewayMockedCurrencyUSDC: CurrencyId = CurrencyId::USDC;
     pub const GatewayMockedCurrencyEUR: CurrencyId = CurrencyId::EUR;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
+    pub GatewayMockedStellarAsset: xdr::Asset = xdr::Asset::AssetTypeNative;
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
@@ -360,6 +362,7 @@ impl pallet_stellar_bridge::Config for Runtime {
     type GatewayMockedCurrencyUSDC = GatewayMockedCurrencyUSDC;
     type GatewayMockedCurrencyEUR = GatewayMockedCurrencyEUR;
     type GatewayMockedDestination = GatewayMockedDestination;
+    type GatewayMockedStellarAsset = GatewayMockedStellarAsset;
 }
 
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;

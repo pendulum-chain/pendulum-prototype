@@ -41,15 +41,30 @@ pub struct Transaction {
 // In this particular case we asunme the embedded payload will allways be for transactions
 // ref https://developers.stellar.org/api/introduction/response-format/
 #[derive(Deserialize, Debug)]
-pub struct HorizonEmbeddedPayload {
+pub struct EmbeddedTransactions {
     pub records: Vec<Transaction>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HorizonResponse {
+pub struct HorizonAccountResponse {
     // We don't care about specifics of pagination, so we just tell serde that this will be a generic json value
     pub _links: serde_json::Value,
-    pub _embedded: HorizonEmbeddedPayload,
+
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub id: Vec<u8>,
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub account_id: Vec<u8>,
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub sequence: Vec<u8>,
+
+    // ...
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HorizonTransactionsResponse {
+    // We don't care about specifics of pagination, so we just tell serde that this will be a generic json value
+    pub _links: serde_json::Value,
+    pub _embedded: EmbeddedTransactions,
 }
 
 pub fn de_string_to_bytes<'de, D>(de: D) -> Result<Vec<u8>, D::Error>

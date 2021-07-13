@@ -19,9 +19,3 @@ impl StaticLookup for AddressConversion {
         MultiSigner::Ed25519(ed25519::Public::from_raw(*stellar_addr.get_binary())).into_account()
     }
 }
-
-/// Error type for key decoding errors
-#[derive(Debug)]
-pub enum AddressConversionError {
-//     UnexpectedKeyType
-}
