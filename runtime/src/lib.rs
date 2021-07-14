@@ -21,10 +21,9 @@ use sp_runtime::traits::{
 };
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    transaction_validity::{TransactionSource, TransactionValidity},
     traits::Zero,
-    ApplyExtrinsicResult, MultiAddress, MultiSignature,
-    SaturatedConversion, RuntimeDebug
+    transaction_validity::{TransactionSource, TransactionValidity},
+    ApplyExtrinsicResult, MultiAddress, MultiSignature, RuntimeDebug, SaturatedConversion,
 };
 
 use sp_std::prelude::*;
@@ -32,7 +31,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-use orml_currencies::{BasicCurrencyAdapter};
+use orml_currencies::BasicCurrencyAdapter;
 use orml_traits::parameter_type_with_key;
 
 use hex_literal;
@@ -91,8 +90,8 @@ pub type DigestItem = generic::DigestItem<Hash>;
 #[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, RuntimeDebug, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum CurrencyId {
-	Native,
-	USDC
+    Native,
+    USDC,
 }
 
 impl Default for CurrencyId {
@@ -299,31 +298,31 @@ impl pallet_sudo::Config for Runtime {
 }
 
 impl orml_tokens::Config for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-	type Amount = Amount;
-	type CurrencyId = CurrencyId;
-	type WeightInfo = ();
-	type ExistentialDeposits = ExistentialDeposits;
-	type OnDust = ();
+    type Event = Event;
+    type Balance = Balance;
+    type Amount = Amount;
+    type CurrencyId = CurrencyId;
+    type WeightInfo = ();
+    type ExistentialDeposits = ExistentialDeposits;
+    type OnDust = ();
 }
 
 parameter_type_with_key! {
-	pub ExistentialDeposits: |_currency_id: CurrencyId| -> Balance {
-		Zero::zero()
-	};
+    pub ExistentialDeposits: |_currency_id: CurrencyId| -> Balance {
+        Zero::zero()
+    };
 }
 
 parameter_types! {
-	pub const GetNativeCurrencyId: CurrencyId = CurrencyId::Native;
+    pub const GetNativeCurrencyId: CurrencyId = CurrencyId::Native;
 }
 
 impl orml_currencies::Config for Runtime {
-	type Event = Event;
-	type MultiCurrency = Tokens;
-	type NativeCurrency = BasicCurrencyAdapter<Runtime, Balances, Amount, BlockNumber>;
-	type GetNativeCurrencyId = GetNativeCurrencyId;
-	type WeightInfo = ();
+    type Event = Event;
+    type MultiCurrency = Tokens;
+    type NativeCurrency = BasicCurrencyAdapter<Runtime, Balances, Amount, BlockNumber>;
+    type GetNativeCurrencyId = GetNativeCurrencyId;
+    type WeightInfo = ();
 }
 
 pub const XLM: Balance = 10_000_000;
@@ -428,7 +427,7 @@ construct_runtime!(
 
         // ORML modules for handling Multi Currency
         Currencies: orml_currencies::{Module, Call, Event<T>},
-		Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
+        Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
 
         // Include stellar-watch pallet.
         StellarBridge: pallet_stellar_bridge::{Module, Call, Storage, Event<T>, ValidateUnsigned},

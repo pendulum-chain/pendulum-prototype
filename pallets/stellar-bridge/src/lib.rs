@@ -11,8 +11,8 @@ use frame_system::pallet_prelude::*;
 
 use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
-use sp_runtime::RuntimeDebug;
 use sp_runtime::traits::StaticLookup;
+use sp_runtime::RuntimeDebug;
 
 use sp_std::{prelude::*, str};
 
@@ -21,8 +21,8 @@ use orml_traits::{MultiCurrency, MultiReservableCurrency};
 use serde::Deserialize;
 use string::String;
 
-use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
 use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
+use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
 
 use pallet_transaction_payment::Config as PaymentConfig;
 
@@ -35,7 +35,6 @@ type BalanceOf<T> =
 
 type CurrencyIdOf<T> =
     <<T as Config>::Currency as MultiCurrency<<T as frame_system::Config>::AccountId>>::CurrencyId;
-
 
 // Re-export pallet items so that they can be accessed from the crate namespace.
 // pub use pallet::*;
@@ -85,7 +84,8 @@ pub struct DepositPayload<Currency, AccountId, Public, Balance> {
     signed_by: Public,
 }
 
-impl<T: SigningTypes> SignedPayload<T> for DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>
+impl<T: SigningTypes> SignedPayload<T>
+    for DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>
 where
     T: pallet::Config,
 {
@@ -109,10 +109,12 @@ pub mod pallet {
     use sp_runtime::offchain::storage::StorageValueRef;
     use sp_runtime::offchain::Duration;
 
-
     #[pallet::config]
     pub trait Config:
-        frame_system::Config + CreateSignedTransaction<Call<Self>> + PaymentConfig + orml_tokens::Config
+        frame_system::Config
+        + CreateSignedTransaction<Call<Self>>
+        + PaymentConfig
+        + orml_tokens::Config
     {
         type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
         /// The overarching dispatch call type.
@@ -131,7 +133,7 @@ pub mod pallet {
     }
 
     #[pallet::event]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance", CurrencyIdOf<T> = "Currency")]
+    #[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance", CurrencyIdOf<T> = "Currency")]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     // #[pallet::generate_withdrawal(pub(super) fn withdrawal_event)]
     pub enum Event<T: Config> {
@@ -185,7 +187,7 @@ pub mod pallet {
         #[pallet::weight(10000)]
         pub fn submit_deposit_unsigned_with_signed_payload(
             origin: OriginFor<T>,
-            payload: DepositPayload<CurrencyIdOf<T>,T::AccountId, T::Public, BalanceOf<T>>,
+            payload: DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>,
             _signature: T::Signature,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_none(origin)?;
@@ -318,7 +320,8 @@ pub mod pallet {
             let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
                 match last_stored_tx_id {
                     Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
-                    _ => Ok(latest_tx_id_utf8.clone()),                }
+                    _ => Ok(latest_tx_id_utf8.clone()),
+                }
             });
 
             match res {
@@ -330,46 +333,63 @@ pub mod pallet {
                         let mut amount: Option<BalanceOf<T>> = None;
                         let destination = T::GatewayMockedDestination::get();
                         let currency = T::GatewayMockedCurrency::get();
-                        
+
                         // Decode transaction to Base64 and then to Stellar XDR to get transaction details
                         let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
                         let tx_envelope = xdr::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
 
                         if let xdr::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
-
                             // Source account will be our destination account
                             if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
                                 let pubkey = StellarPublicKey::from_binary(key).to_encoding();
                                 match str::from_utf8(&pubkey) {
-                                    Ok(stellar_account_id) => debug::info!("✔️  Source account is a valid Stellar account {:?}", stellar_account_id),
-                                    Err(_err) => debug::error!("❌  Source account is a not a valid Stellar account.")
+                                    Ok(stellar_account_id) => debug::info!(
+                                        "✔️  Source account is a valid Stellar account {:?}",
+                                        stellar_account_id
+                                    ),
+                                    Err(_err) => debug::error!(
+                                        "❌  Source account is a not a valid Stellar account."
+                                    ),
                                 }
                             }
 
                             for op in env.tx.operations.get_vec() {
                                 if let xdr::OperationBody::Payment(payment_op) = &op.body {
-
-                                    let dest_account = xdr::MuxedAccount::from(payment_op.destination.clone());
+                                    let dest_account =
+                                        xdr::MuxedAccount::from(payment_op.destination.clone());
                                     debug::info!("Muxed account {:#?}", dest_account);
 
-                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest_unwrapped) = payment_op.destination {
-                                        let pubkey = StellarPublicKey::from_binary(dest_unwrapped).to_encoding();
+                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
+                                        payment_op.destination
+                                    {
+                                        let pubkey = StellarPublicKey::from_binary(dest_unwrapped)
+                                            .to_encoding();
                                         let pubkey_str = str::from_utf8(&pubkey).unwrap();
                                         if pubkey_str.eq(T::GatewayEscrowAccount::get()) {
-                                            debug::info!("✔️  Destination account is the escrow account {:?}", pubkey_str);
+                                            debug::info!(
+                                                "✔️  Destination account is the escrow account {:?}",
+                                                pubkey_str
+                                            );
                                         }
                                     }
-                                    
-                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
+
+                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) =
+                                        &payment_op.asset
+                                    {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("Asset {:#?}", asset_code);
-                                        amount = Some(T::BalanceConversion::unlookup(payment_op.amount));
+                                        amount =
+                                            Some(T::BalanceConversion::unlookup(payment_op.amount));
                                         debug::info!("Amount {:#?}", amount);
                                     }
                                 }
                             }
                         }
-                        match Self::offchain_unsigned_tx_signed_payload(currency, amount.unwrap(), destination) {
+                        match Self::offchain_unsigned_tx_signed_payload(
+                            currency,
+                            amount.unwrap(),
+                            destination,
+                        ) {
                             Err(_) => debug::warn!("Sending the tx failed."),
                             Ok(_) => (),
                         }

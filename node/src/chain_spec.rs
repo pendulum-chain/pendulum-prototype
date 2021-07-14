@@ -1,6 +1,6 @@
 use node_template_runtime::{
-    AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-    SystemConfig, WASM_BINARY, TokensConfig, CurrencyId
+    AccountId, AuraConfig, BalancesConfig, CurrencyId, GenesisConfig, GrandpaConfig, Signature,
+    SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -161,14 +161,10 @@ fn testnet_genesis(
             key: root_key,
         }),
         orml_tokens: Some(TokensConfig {
-			endowed_accounts: endowed_accounts
-			.iter()
-			.flat_map(|x| {
-				vec![
-					(x.clone(), CurrencyId::USDC, 10u128.pow(12)),
-				]
-			})
-			.collect(),
-		}),
+            endowed_accounts: endowed_accounts
+                .iter()
+                .flat_map(|x| vec![(x.clone(), CurrencyId::USDC, 10u128.pow(12))])
+                .collect(),
+        }),
     }
 }
