@@ -12,6 +12,8 @@ use frame_system::pallet_prelude::*;
 use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
 use sp_runtime::RuntimeDebug;
+use sp_runtime::traits::StaticLookup;
+
 use sp_std::{prelude::*, str};
 
 use orml_traits::{MultiCurrency, MultiReservableCurrency};
@@ -45,7 +47,6 @@ pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
 
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
-const DEPOSIT_FACTOR: u32 = 100_000_000;
 
 /// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrapper.
 /// We can utilize the supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
@@ -121,6 +122,7 @@ pub mod pallet {
 
         /// The mechanics of the ORML tokens  
         type Currency: MultiReservableCurrency<Self::AccountId>;
+        type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
 
         type GatewayEscrowAccount: Get<&'static str>;
         type GatewayMockedAmount: Get<BalanceOf<Self>>;
@@ -361,7 +363,7 @@ pub mod pallet {
                                     if let xdr::Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("Asset {:#?}", asset_code);
-                                        amount = Some(<BalanceOf<T>>::from((payment_op.amount * DEPOSIT_FACTOR) as u32 ));
+                                        amount = Some(T::BalanceConversion::unlookup(payment_op.amount));
                                         debug::info!("Amount {:#?}", amount);
                                     }
                                 }

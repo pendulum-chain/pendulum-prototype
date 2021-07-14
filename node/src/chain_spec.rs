@@ -144,7 +144,7 @@ fn testnet_genesis(
             balances: endowed_accounts
                 .iter()
                 .cloned()
-                .map(|k| (k, 1 << 60))
+                .map(|k| (k, 1000_000_000_000u128))
                 .collect(),
         }),
         pallet_aura: Some(AuraConfig {
@@ -165,7 +165,7 @@ fn testnet_genesis(
 			.iter()
 			.flat_map(|x| {
 				vec![
-					(x.clone(), CurrencyId::USDC, 10u128.pow(16)),
+					(x.clone(), CurrencyId::USDC, 10u128.pow(12)),
 				]
 			})
 			.collect(),
