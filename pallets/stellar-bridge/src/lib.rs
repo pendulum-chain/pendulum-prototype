@@ -14,6 +14,7 @@ use frame_system::pallet_prelude::*;
 
 use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
+use sp_runtime::offchain::Duration;
 use sp_runtime::traits::StaticLookup;
 use sp_runtime::{MultiSignature, RuntimeDebug};
 use sp_std::{prelude::*, str};
@@ -22,13 +23,10 @@ use orml_traits::{MultiCurrency, MultiReservableCurrency};
 
 use serde::Deserialize;
 
-use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
-use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
+use substrate_stellar_sdk as stellar;
+use substrate_stellar_sdk::PublicKey as StellarPublicKey;
 
 use pallet_transaction_payment::Config as PaymentConfig;
-
-use substrate_stellar_sdk as stellar;
-use substrate_stellar_xdr::compound_types::LimitedVarArray;
 
 use self::horizon::*;
 
@@ -49,7 +47,8 @@ pub type Signature = MultiSignature;
 
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 
-pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
+pub const FETCH_TIMEOUT_PERIOD: Duration = Duration::from_millis(3000);
+pub const SUBMISSION_TIMEOUT_PERIOD: Duration = Duration::from_millis(10000);
 
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
@@ -116,12 +115,15 @@ struct IndexingData(Vec<u8>, u64);
 pub mod pallet {
     use super::*;
     use frame_support::dispatch::DispatchResultWithPostInfo;
+    use frame_support::error::LookupError;
     use frame_system::offchain::SendUnsignedTransaction;
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
     use sp_runtime::offchain::http::{Request, Response};
     use sp_runtime::offchain::storage::StorageValueRef;
-    use sp_runtime::offchain::Duration;
-    use stellar::keypair::Keypair;
+    use sp_runtime::offchain::HttpError;
+    use stellar::network::TEST_NETWORK;
+    use stellar::{Asset, MuxedAccount, SecretKey, StellarSdkError, TransactionEnvelope, XdrCodec};
+    use substrate_stellar_sdk::compound_types::LimitedVarArray;
 
     #[pallet::config]
     pub trait Config:
@@ -138,16 +140,16 @@ pub mod pallet {
 
         /// The mechanics of the ORML tokens
         type Currency: MultiReservableCurrency<Self::AccountId>;
-        type AddressConversion: StaticLookup<Source = Self::AccountId, Target = stellar::keypair::PublicKey>;
+        type AddressConversion: StaticLookup<Source = Self::AccountId, Target = stellar::PublicKey>;
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
 
         type GatewayEscrowAccount: Get<&'static str>;
-        type GatewayEscrowKeypair: Get<Keypair>;
+        type GatewayEscrowKeypair: Get<SecretKey>;
         type GatewayMockedAmount: Get<BalanceOf<Self>>;
         type GatewayMockedCurrencyUSDC: Get<CurrencyIdOf<Self>>;
         type GatewayMockedCurrencyEUR: Get<CurrencyIdOf<Self>>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
-        type GatewayMockedStellarAsset: Get<stellar::xdr::Asset>;
+        type GatewayMockedStellarAsset: Get<stellar::Asset>;
     }
 
     #[pallet::event]
@@ -254,10 +256,10 @@ pub mod pallet {
             drop(imbalance);
 
             let seq_no = Self::fetch_latest_seq_no(escrow_address).map(|seq_no| seq_no + 1)?;
-            let _stellar_tx = Self::create_withdrawal_tx(&pendulum_account_id, &stellar_address, seq_no, asset, amount)?;
+            let transaction = Self::create_withdrawal_tx(&stellar_address, seq_no, asset, amount)?;
+            let signed_envelope = Self::sign_stellar_tx(transaction, T::GatewayEscrowKeypair::get())?;
 
-            // TODO: Sign & submit Stellar tx
-            // TODO: Retry submission if necessary
+            Self::submit_stellar_tx(signed_envelope)?;
 
             // Self::withdrawal_event(Event:T:Withdrawal(source_address, amount));
             // Err(sp_runtime::DispatchError::Other("Not yet implemented"))
@@ -266,35 +268,90 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn create_withdrawal_tx(_account: &T::AccountId, stellar_addr: &stellar::keypair::PublicKey, seq_num: u64, asset: stellar::xdr::Asset, amount: BalanceOf<T>) -> Result<stellar::xdr::Transaction, Error<T>> {
-            let memo = stellar::xdr::Memo::MemoNone;
-            let destination_addr = stellar_addr.get_binary();
-            let source_pubkey = stellar::keypair::PublicKey::from_encoding(T::GatewayEscrowAccount::get())
+        fn create_withdrawal_tx(stellar_addr: &stellar::PublicKey, seq_num: u64, asset: stellar::Asset, amount: BalanceOf<T>) -> Result<stellar::Transaction, Error<T>> {
+            let memo = stellar::Memo::MemoNone;
+            let destination_addr = stellar_addr.as_binary();
+            let source_pubkey = stellar::PublicKey::from_encoding(T::GatewayEscrowAccount::get())
                 .map_err(|_| <Error<T>>::StellarAddressParsingError)?;
-            let source_addr = source_pubkey.get_binary();
+            let source_addr = source_pubkey.as_binary();
 
             let operations = LimitedVarArray::<_, 100>::new(vec![
-                stellar::xdr::Operation {
-                    body: stellar::xdr::OperationBody::Payment(
-                        stellar::xdr::PaymentOp {
+                stellar::Operation {
+                    body: stellar::types::OperationBody::Payment(
+                        stellar::types::PaymentOp {
                             amount: T::BalanceConversion::lookup(amount).map_err(|_| <Error<T>>::BalanceConversionError)?,
                             asset,
-                            destination: stellar::xdr::MuxedAccount::KeyTypeEd25519(*destination_addr)
+                            destination: stellar::MuxedAccount::KeyTypeEd25519(*destination_addr)
                         }
                     ),
                     source_account: None,
                 },
-            ]).map_err(|_| <Error<T>>::ExceedsMaximumLengthError)?;
+            ])?;
 
-            Ok(stellar::xdr::Transaction {
-                ext: stellar::xdr::TransactionExt::V0,
+            Ok(stellar::Transaction {
+                ext: stellar::types::TransactionExt::V0,
                 fee: 10000,
                 memo,
                 operations,
                 seq_num: seq_num as i64,
-                source_account: stellar::xdr::MuxedAccount::KeyTypeEd25519(*source_addr),
+                source_account: stellar::MuxedAccount::KeyTypeEd25519(*source_addr),
                 time_bounds: None,
             })
+        }
+
+        fn sign_stellar_tx(tx: stellar::types::Transaction, secret_key: SecretKey) -> Result<stellar::TransactionEnvelope, Error<T>> {
+            let mut envelope = tx.into_transaction_envelope();
+            envelope.sign(&TEST_NETWORK, vec![&secret_key])?;
+
+            Ok(envelope)
+        }
+
+        fn submit_stellar_tx(tx: stellar::TransactionEnvelope) -> Result<(), Error<T>> {
+            let mut last_error: Option<Error<T>> = None;
+
+            for attempt in 1..=3 {
+                debug::debug!("Attempt #{} to submit Stellar transaction…", attempt);
+
+                match Self::try_once_submit_stellar_tx(&tx) {
+                    Ok(result) => {
+                        return Ok(result);
+                    },
+                    Err(error) => {
+                        last_error = Some(error);
+                    }
+                }
+            }
+
+            // Can only panic if no submission was ever attempted
+            Err(last_error.unwrap())
+        }
+
+        fn try_once_submit_stellar_tx(tx: &stellar::TransactionEnvelope) -> Result<(), Error<T>> {
+            let tx_xdr_vec = tx.to_base64_xdr();
+            let tx_xdr_str = str::from_utf8(tx_xdr_vec.as_slice()).unwrap();
+            let request_url = String::from("https://horizon-testnet.stellar.org/transactions?tx=") + tx_xdr_str;
+
+            debug::info!("Submitting transaction to Stellar network: {}", tx_xdr_str);
+
+            let request = Request::post(request_url.as_str(), vec![] as Vec<&[u8]>);
+            let timeout =
+                sp_io::offchain::timestamp().add(SUBMISSION_TIMEOUT_PERIOD);
+
+            let pending = request
+                .deadline(timeout)
+                .send()?;
+
+            let response = pending
+                .try_wait(timeout)
+                .map_err(|_| <Error<T>>::HttpFetchingError)?
+                .map_err(|_| <Error<T>>::HttpFetchingError)?;
+
+            if response.code != 200 {
+                debug::error!("Unexpected HTTP request status code: {}", response.code);
+                return Err(<Error<T>>::HttpFetchingError);
+            }
+
+            Ok(())
         }
 
         fn fetch_from_remote(request_url: &str) -> Result<Response, Error<T>> {
@@ -302,21 +359,20 @@ pub mod pallet {
 
             let request = Request::get(request_url);
             let timeout =
-                sp_io::offchain::timestamp().add(Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+                sp_io::offchain::timestamp().add(FETCH_TIMEOUT_PERIOD);
 
             let pending = request
                 .deadline(timeout)
-                .send()
-                .map_err(|_| Error::HttpFetchingError)?;
+                .send()?;
 
             let response = pending
                 .try_wait(timeout)
-                .map_err(|_| Error::HttpFetchingError)?
-                .map_err(|_| Error::HttpFetchingError)?;
+                .map_err(|_| <Error<T>>::HttpFetchingError)?
+                .map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             if response.code != 200 {
                 debug::error!("Unexpected HTTP request status code: {}", response.code);
-                return Err(Error::HttpFetchingError);
+                return Err(<Error<T>>::HttpFetchingError);
             }
 
             Ok(response)
@@ -328,15 +384,15 @@ pub mod pallet {
             let response = Self::fetch_from_remote(request_url.as_str())
                 .map_err(|e| {
                     debug::error!("fetch_latest_seq_no error: {:?}", e);
-                    Error::HttpFetchingError
+                    <Error<T>>::HttpFetchingError
                 })?;
 
             let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
-            let resp_str = str::from_utf8(&json_bytes).map_err(|_| Error::HttpFetchingError)?;
+            let resp_str = str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
             let horizon_response: HorizonAccountResponse =
-                serde_json::from_str(&resp_str).map_err(|_| Error::HttpFetchingError)?;
+                serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             String::from_utf8(horizon_response.sequence)
                 .map(|string| string.parse::<u64>().unwrap())
@@ -352,15 +408,15 @@ pub mod pallet {
             let response = Self::fetch_from_remote(request_url.as_str())
                 .map_err(|e| {
                     debug::error!("fetch_latest_txs error: {:?}", e);
-                    Error::HttpFetchingError
+                    <Error<T>>::HttpFetchingError
                 })?;
 
             let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
-            let resp_str = str::from_utf8(&json_bytes).map_err(|_| Error::HttpFetchingError)?;
+            let resp_str = str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
             let horizon_response: HorizonTransactionsResponse =
-                serde_json::from_str(&resp_str).map_err(|_| Error::HttpFetchingError)?;
+                serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             Ok(horizon_response)
         }
@@ -421,11 +477,11 @@ pub mod pallet {
 
                         // Decode transaction to Base64 and then to Stellar XDR to get transaction details
                         let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
-                        let tx_envelope = xdr::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
+                        let tx_envelope = TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
 
-                        if let xdr::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+                        if let TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
                             // Source account will be our destination account
-                            if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
+                            if let MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
                                 let pubkey = StellarPublicKey::from_binary(key).to_encoding();
                                 match str::from_utf8(&pubkey) {
                                     Ok(stellar_account_id) => debug::info!(
@@ -439,12 +495,12 @@ pub mod pallet {
                             }
 
                             for op in env.tx.operations.get_vec() {
-                                if let xdr::OperationBody::Payment(payment_op) = &op.body {
+                                if let stellar::types::OperationBody::Payment(payment_op) = &op.body {
                                     let dest_account =
-                                        xdr::MuxedAccount::from(payment_op.destination.clone());
+                                        MuxedAccount::from(payment_op.destination.clone());
                                     debug::info!("Muxed account {:#?}", dest_account);
 
-                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
+                                    if let MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
                                         payment_op.destination
                                     {
                                         let pubkey = StellarPublicKey::from_binary(dest_unwrapped)
@@ -458,7 +514,7 @@ pub mod pallet {
                                         }
                                     }
 
-                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) =
+                                    if let Asset::AssetTypeCreditAlphanum4(code) =
                                         &payment_op.asset
                                     {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
@@ -543,11 +599,11 @@ pub mod pallet {
         // Error returned when making unsigned transactions with signed payloads in off-chain worker
         OffchainUnsignedTxSignedPayloadError,
 
+        // Failed to convert an amount or balance
+        BalanceConversionError,
+
         // Error returned when fetching remote info
         HttpFetchingError,
-
-        // Could not convert Pendulum amount into Stellar amount
-        BalanceConversionError,
 
         // Stellar XDR array size error
         ExceedsMaximumLengthError,
@@ -557,5 +613,29 @@ pub mod pallet {
 
         // Could not parse Stellar public key
         StellarAddressParsingError,
+
+        // Some Stellar SDK error
+        StellarSdkError,
+    }
+
+    impl<T> From<StellarSdkError> for Error<T> {
+        fn from(error: StellarSdkError) -> Self {
+            match error {
+                StellarSdkError::ExceedsMaximumLength { .. } => Self::ExceedsMaximumLengthError,
+                _ => Self::StellarSdkError
+            }
+        }
+    }
+
+    impl<T> From<HttpError> for Error<T> {
+        fn from(_: HttpError) -> Self {
+            Self::HttpFetchingError
+        }
+    }
+
+    impl<T> From<LookupError> for Error<T> {
+        fn from(_: LookupError) -> Self {
+            Self::BalanceConversionError
+        }
     }
 }

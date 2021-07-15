@@ -8,14 +8,14 @@ pub struct AddressConversion;
 
 impl StaticLookup for AddressConversion {
     type Source = AccountId32;
-    type Target = stellar::keypair::PublicKey;
+    type Target = stellar::PublicKey;
 
     fn lookup(key: Self::Source) -> Result<Self::Target, LookupError> {
         // We just assume (!) an Ed25519 key has been passed to us
-        Ok(stellar::keypair::PublicKey::from_binary(key.into()) as stellar::keypair::PublicKey)
+        Ok(stellar::PublicKey::from_binary(key.into()) as stellar::PublicKey)
     }
 
-    fn unlookup(stellar_addr: stellar::keypair::PublicKey) -> Self::Source {
-        MultiSigner::Ed25519(ed25519::Public::from_raw(*stellar_addr.get_binary())).into_account()
+    fn unlookup(stellar_addr: stellar::PublicKey) -> Self::Source {
+        MultiSigner::Ed25519(ed25519::Public::from_raw(*stellar_addr.as_binary())).into_account()
     }
 }

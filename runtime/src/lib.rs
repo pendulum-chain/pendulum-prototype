@@ -61,8 +61,8 @@ pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
 
-use substrate_stellar_sdk::keypair::Keypair;
-use substrate_stellar_sdk::xdr;
+use stellar::SecretKey;
+use substrate_stellar_sdk as stellar;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -340,12 +340,12 @@ parameter_types! {
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
-    pub GatewayEscrowKeypair: Keypair = Keypair::from_encoded_secret("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
+    pub GatewayEscrowKeypair: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
     pub const GatewayMockedAmount: Balance = 1e12 as Balance;
     pub const GatewayMockedCurrencyUSDC: CurrencyId = CurrencyId::USDC;
     pub const GatewayMockedCurrencyEUR: CurrencyId = CurrencyId::EUR;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
-    pub GatewayMockedStellarAsset: xdr::Asset = xdr::Asset::AssetTypeNative;
+    pub GatewayMockedStellarAsset: stellar::Asset = stellar::Asset::AssetTypeNative;
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
