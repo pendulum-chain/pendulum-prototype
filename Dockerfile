@@ -7,6 +7,7 @@ COPY . .
 
 RUN rustup toolchain uninstall nightly-x86_64-apple-darwin
 RUN rustup toolchain install nightly
+RUN rustup target add wasm32-unknown-unknown
 RUN cargo build --release
 
 FROM paritytech/ci-linux:1a002583-20210719
