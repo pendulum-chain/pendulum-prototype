@@ -92,6 +92,7 @@ pub type DigestItem = generic::DigestItem<Hash>;
 pub enum CurrencyId {
     Native,
     USDC,
+    EUR,
 }
 
 impl Default for CurrencyId {
@@ -127,8 +128,8 @@ pub mod opaque {
 // To learn more about runtime versioning and what each of the following value means:
 //   https://substrate.dev/docs/en/knowledgebase/runtime/upgrades#runtime-versioning
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("node-template"),
-    impl_name: create_runtime_str!("node-template"),
+    spec_name: create_runtime_str!("pendulum"),
+    impl_name: create_runtime_str!("pendulum"),
     authoring_version: 1,
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
@@ -335,7 +336,8 @@ parameter_types! {
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
     pub const GatewayMockedAmount: Balance = 1e12 as Balance;
-    pub const GatewayMockedCurrency: CurrencyId = CurrencyId::USDC;
+    pub const GatewayMockedCurrencyUSDC: CurrencyId = CurrencyId::USDC;
+    pub const GatewayMockedCurrencyEUR: CurrencyId = CurrencyId::EUR;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
 }
 
@@ -348,7 +350,8 @@ impl pallet_stellar_bridge::Config for Runtime {
     type Currency = Currencies;
     type GatewayEscrowAccount = GatewayEscrowAccount;
     type GatewayMockedAmount = GatewayMockedAmount;
-    type GatewayMockedCurrency = GatewayMockedCurrency;
+    type GatewayMockedCurrencyUSDC = GatewayMockedCurrencyUSDC;
+    type GatewayMockedCurrencyEUR = GatewayMockedCurrencyEUR;
     type GatewayMockedDestination = GatewayMockedDestination;
 }
 

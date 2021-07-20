@@ -128,7 +128,8 @@ pub mod pallet {
 
         type GatewayEscrowAccount: Get<&'static str>;
         type GatewayMockedAmount: Get<BalanceOf<Self>>;
-        type GatewayMockedCurrency: Get<CurrencyIdOf<Self>>;
+        type GatewayMockedCurrencyUSDC: Get<CurrencyIdOf<Self>>;
+        type GatewayMockedCurrencyEUR: Get<CurrencyIdOf<Self>>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
     }
 
@@ -332,7 +333,7 @@ pub mod pallet {
                         // let amount = T::GatewayMockedAmount::get();
                         let mut amount: Option<BalanceOf<T>> = None;
                         let destination = T::GatewayMockedDestination::get();
-                        let currency = T::GatewayMockedCurrency::get();
+                        let mut currency = None;
 
                         // Decode transaction to Base64 and then to Stellar XDR to get transaction details
                         let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
@@ -378,6 +379,16 @@ pub mod pallet {
                                     {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("Asset {:#?}", asset_code);
+                                        currency = match code.asset_code {
+                                            [b'E', b'U', b'R', 0] => {
+                                                Some(T::GatewayMockedCurrencyEUR::get())
+                                            }
+                                            [b'U', b'S', b'D', b'C'] => {
+                                                Some(T::GatewayMockedCurrencyUSDC::get())
+                                            }
+                                            _ => None,
+                                        };
+
                                         amount =
                                             Some(T::BalanceConversion::unlookup(payment_op.amount));
                                         debug::info!("Amount {:#?}", amount);
@@ -385,13 +396,16 @@ pub mod pallet {
                                 }
                             }
                         }
-                        match Self::offchain_unsigned_tx_signed_payload(
-                            currency,
-                            amount.unwrap(),
-                            destination,
-                        ) {
-                            Err(_) => debug::warn!("Sending the tx failed."),
-                            Ok(_) => (),
+
+                        if currency.is_some() && amount.is_some() {
+                            match Self::offchain_unsigned_tx_signed_payload(
+                                currency.unwrap(),
+                                amount.unwrap(),
+                                destination,
+                            ) {
+                                Err(_) => debug::warn!("Sending the tx failed."),
+                                Ok(_) => (),
+                            }
                         }
                     }
                 }
