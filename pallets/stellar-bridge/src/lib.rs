@@ -11,26 +11,35 @@ use frame_system::pallet_prelude::*;
 
 use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
+use sp_runtime::traits::StaticLookup;
 use sp_runtime::RuntimeDebug;
+
 use sp_std::{prelude::*, str};
+
+use orml_traits::{MultiCurrency, MultiReservableCurrency};
 
 use serde::Deserialize;
 use string::String;
 
-use pallet_balances::{Config as BalancesConfig, Pallet as BalancesPallet};
+use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
+use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
+
 use pallet_transaction_payment::Config as PaymentConfig;
 
-use frame_support::traits::Currency;
-
 use self::horizon::*;
+
+pub use pallet::*;
+
+type BalanceOf<T> =
+    <<T as Config>::Currency as MultiCurrency<<T as frame_system::Config>::AccountId>>::Balance;
+
+type CurrencyIdOf<T> =
+    <<T as Config>::Currency as MultiCurrency<<T as frame_system::Config>::AccountId>>::CurrencyId;
 
 // Re-export pallet items so that they can be accessed from the crate namespace.
 // pub use pallet::*;
 
 pub type Balance = u128;
-
-/// A type alias for the balance type from this pallet's point of view.
-type BalanceOf<T> = <T as pallet_balances::Config>::Balance;
 
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"abcd");
 
@@ -68,15 +77,17 @@ pub mod crypto {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct DepositPayload<AccountId, Public, Balance> {
+pub struct DepositPayload<Currency, AccountId, Public, Balance> {
+    currency_id: Currency,
     amount: Balance,
     destination: AccountId,
     signed_by: Public,
 }
 
-impl<T: SigningTypes> SignedPayload<T> for DepositPayload<T::AccountId, T::Public, T::Balance>
+impl<T: SigningTypes> SignedPayload<T>
+    for DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>
 where
-    T: BalancesConfig,
+    T: pallet::Config,
 {
     fn public(&self) -> T::Public {
         self.signed_by.clone()
@@ -85,8 +96,6 @@ where
 
 #[derive(Debug, Deserialize, Encode, Decode, Default)]
 struct IndexingData(Vec<u8>, u64);
-
-pub use pallet::*;
 
 // Definition of the pallet logic, to be aggregated at runtime definition through
 // `construct_runtime`.
@@ -102,7 +111,10 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config + CreateSignedTransaction<Call<Self>> + BalancesConfig + PaymentConfig
+        frame_system::Config
+        + CreateSignedTransaction<Call<Self>>
+        + PaymentConfig
+        + orml_tokens::Config
     {
         type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
         /// The overarching dispatch call type.
@@ -110,25 +122,27 @@ pub mod pallet {
         /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// The mechanics of the ORML tokens  
+        type Currency: MultiReservableCurrency<Self::AccountId>;
+        type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
+
         type GatewayEscrowAccount: Get<&'static str>;
-        type GatewayMockedAmount: Get<<Self as pallet_balances::Config>::Balance>;
+        type GatewayMockedAmount: Get<BalanceOf<Self>>;
+        type GatewayMockedCurrencyUSDC: Get<CurrencyIdOf<Self>>;
+        type GatewayMockedCurrencyEUR: Get<CurrencyIdOf<Self>>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
     }
 
-    /// Events are a simple means of reporting specific conditions and
-    /// circumstances that have happened that users, Dapps and/or chain explorers would find
-    /// interesting and otherwise difficult to detect.
     #[pallet::event]
-    /// This attribute generate the function `deposit_event` to deposit one of this pallet event,
-    /// it is optional, it is also possible to provide a custom implementation.
+    #[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance", CurrencyIdOf<T> = "Currency")]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     // #[pallet::generate_withdrawal(pub(super) fn withdrawal_event)]
     pub enum Event<T: Config> {
         /// Event generated when a new deposit is made on Stellar Escrow Account.
-        Deposit(T::AccountId, BalanceOf<T>),
+        Deposit(CurrencyIdOf<T>, T::AccountId, BalanceOf<T>),
 
         /// Event generated when a new withdrawal has been completed on Stellar.
-        Withdrawal(T::AccountId, BalanceOf<T>),
+        Withdrawal(CurrencyIdOf<T>, T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::pallet]
@@ -163,7 +177,7 @@ pub mod pallet {
             let transactions = &res.unwrap()._embedded.records;
 
             if transactions.len() > 0 {
-                Self::handle_new_transaction(&transactions[0].id);
+                Self::handle_new_transaction(&transactions[0]);
             }
         }
     }
@@ -174,19 +188,18 @@ pub mod pallet {
         #[pallet::weight(10000)]
         pub fn submit_deposit_unsigned_with_signed_payload(
             origin: OriginFor<T>,
-            payload: DepositPayload<T::AccountId, T::Public, T::Balance>,
+            payload: DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>,
             _signature: T::Signature,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_none(origin)?;
 
-            // FIXME: Verify signature
-            // ~~we don't need to verify the signature here because it has been verified in
-            //   `validate_unsigned` function when sending out the unsigned tx.~~
             let DepositPayload {
+                currency_id,
                 amount,
                 destination,
                 signed_by,
             } = payload;
+
             debug::info!(
                 "submit_deposit_unsigned_with_signed_payload: ({:?}, {:?}, {:?})",
                 amount,
@@ -194,17 +207,17 @@ pub mod pallet {
                 signed_by
             );
 
-            let imbalance = <BalancesPallet<T, _>>::deposit_creating(&destination, amount);
-            drop(imbalance);
+            let result = T::Currency::deposit(currency_id, &destination, amount);
+            debug::info!("{:?}", result);
 
-            Self::deposit_event(Event::Deposit(destination, amount));
+            Self::deposit_event(Event::Deposit(currency_id, destination, amount));
             Ok(().into())
         }
 
         #[pallet::weight(100000)]
         pub fn withdraw_to_stellar(
             origin: OriginFor<T>,
-            _amount: T::Balance,
+            _amount: BalanceOf<T>,
             _signature: T::Signature,
         ) -> DispatchResultWithPostInfo {
             let _pendulum_address = ensure_signed(origin)?;
@@ -214,7 +227,7 @@ pub mod pallet {
             // TODO: Sign & submit Stellar tx
             // TODO: Retry submission if necessary
 
-            // Self::withdrawal_event(Event::Withdrawal(source_address, amount));
+            // Self::withdrawal_event(Event:T:Withdrawal(source_address, amount));
             // Err(sp_runtime::DispatchError::Other("Not yet implemented"))
             unimplemented!();
         }
@@ -269,19 +282,15 @@ pub mod pallet {
         }
 
         fn offchain_unsigned_tx_signed_payload(
-            deposit: T::Balance,
+            currency_id: CurrencyIdOf<T>,
+            deposit: BalanceOf<T>,
             destination: T::AccountId,
         ) -> Result<(), Error<T>> {
-            // Retrieve the signer to sign the payload
             let signer = Signer::<T, T::AuthorityId>::any_account();
 
-            // `send_unsigned_transaction` is returning a type of `Option<(Account<T>, Result<(), ()>)>`.
-            //   Similar to `send_signed_transaction`, they account for:
-            //   - `None`: no account is available for sending transaction
-            //   - `Some((account, Ok(())))`: transaction is successfully sent
-            //   - `Some((account, Err(())))`: error occured when sending the transaction
             if let Some((_, res)) = signer.send_unsigned_transaction(
                 |acct| DepositPayload {
+                    currency_id: currency_id,
                     amount: deposit,
                     destination: destination.clone(),
                     signed_by: acct.public.clone(),
@@ -299,8 +308,10 @@ pub mod pallet {
             }
         }
 
-        fn handle_new_transaction(latest_tx_id_utf8: &Vec<u8>) {
+        fn handle_new_transaction(tx: &Transaction) {
             const UP_TO_DATE: () = ();
+
+            let latest_tx_id_utf8 = &tx.id;
 
             let id_storage = StorageValueRef::persistent(b"stellar-watch:last-tx-id");
 
@@ -314,34 +325,93 @@ pub mod pallet {
                 }
             });
 
-            // The result of `mutate` call will give us a nested `Result` type.
-            // The first one matches the return of the closure passed to `mutate`, i.e.
-            // if we return `Err` from the closure, we get an `Err` here.
-            // In case we return `Ok`, here we will have another (inner) `Result` that indicates
-            // if the value has been set to the storage correctly - i.e. if it wasn't
-            // written to in the meantime.
             match res {
-                // The value has been set correctly.
                 Ok(Ok(saved_tx_id)) => {
                     if !initial {
                         debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
-                        let amount = T::GatewayMockedAmount::get();
+                        // let amount = T::GatewayMockedAmount::get();
+                        let mut amount: Option<BalanceOf<T>> = None;
                         let destination = T::GatewayMockedDestination::get();
+                        let mut currency = None;
 
-                        match Self::offchain_unsigned_tx_signed_payload(amount, destination) {
-                            Err(_) => debug::warn!("Sending the tx failed."),
-                            Ok(_) => (),
+                        // Decode transaction to Base64 and then to Stellar XDR to get transaction details
+                        let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
+                        let tx_envelope = xdr::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
+
+                        if let xdr::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+                            // Source account will be our destination account
+                            if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
+                                let pubkey = StellarPublicKey::from_binary(key).to_encoding();
+                                match str::from_utf8(&pubkey) {
+                                    Ok(stellar_account_id) => debug::info!(
+                                        "✔️  Source account is a valid Stellar account {:?}",
+                                        stellar_account_id
+                                    ),
+                                    Err(_err) => debug::error!(
+                                        "❌  Source account is a not a valid Stellar account."
+                                    ),
+                                }
+                            }
+
+                            for op in env.tx.operations.get_vec() {
+                                if let xdr::OperationBody::Payment(payment_op) = &op.body {
+                                    let dest_account =
+                                        xdr::MuxedAccount::from(payment_op.destination.clone());
+                                    debug::info!("Muxed account {:#?}", dest_account);
+
+                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
+                                        payment_op.destination
+                                    {
+                                        let pubkey = StellarPublicKey::from_binary(dest_unwrapped)
+                                            .to_encoding();
+                                        let pubkey_str = str::from_utf8(&pubkey).unwrap();
+                                        if pubkey_str.eq(T::GatewayEscrowAccount::get()) {
+                                            debug::info!(
+                                                "✔️  Destination account is the escrow account {:?}",
+                                                pubkey_str
+                                            );
+                                        }
+                                    }
+
+                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) =
+                                        &payment_op.asset
+                                    {
+                                        let asset_code = str::from_utf8(&code.asset_code).ok();
+                                        debug::info!("Asset {:#?}", asset_code);
+                                        currency = match code.asset_code {
+                                            [b'E', b'U', b'R', 0] => {
+                                                Some(T::GatewayMockedCurrencyEUR::get())
+                                            }
+                                            [b'U', b'S', b'D', b'C'] => {
+                                                Some(T::GatewayMockedCurrencyUSDC::get())
+                                            }
+                                            _ => None,
+                                        };
+
+                                        amount =
+                                            Some(T::BalanceConversion::unlookup(payment_op.amount));
+                                        debug::info!("Amount {:#?}", amount);
+                                    }
+                                }
+                            }
+                        }
+
+                        if currency.is_some() && amount.is_some() {
+                            match Self::offchain_unsigned_tx_signed_payload(
+                                currency.unwrap(),
+                                amount.unwrap(),
+                                destination,
+                            ) {
+                                Err(_) => debug::warn!("Sending the tx failed."),
+                                Ok(_) => (),
+                            }
                         }
                     }
                 }
-                // The transaction id is the same as before.
                 Err(UP_TO_DATE) => {
                     debug::info!("Already up to date");
                 }
-                // We failed to acquire a lock. This indicates that another offchain worker that was running concurrently
-                // most likely executed the same logic and succeeded at writing to storage.
-                // We don't do anyhting by now, but ideally we should queue transaction ids for processing.
                 Ok(Err(_)) => {
                     debug::info!("Failed to save last transaction id.");
                 }

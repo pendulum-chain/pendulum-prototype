@@ -17,6 +17,7 @@ substrate-wasm-builder = '4.0.0'
 codec = { default-features = false, features = ['derive'], package = 'parity-scale-codec', version = '2.0.0' }
 hex-literal = { version = '0.3.1' }
 serde = { version = "1.0.119", optional = true, features = ["derive"] }
+serde_json = { version = '1.0.45', default-features = false, features = ['alloc'] }
 
 # Substrate dependencies
 frame-benchmarking = { default-features = false, optional = true, version = '3.0.0' }
@@ -25,7 +26,6 @@ frame-support = { default-features = false, version = '3.0.0' }
 frame-system = { default-features = false, version = '3.0.0' }
 frame-system-benchmarking = { default-features = false, optional = true, version = '3.0.0' }
 frame-system-rpc-runtime-api = { default-features = false, version = '3.0.0' }
-pallet-assets = { default-features = false, version = '3.0.0' }
 pallet-aura = { default-features = false, version = '3.0.0' }
 pallet-balances = { default-features = false, version = '3.0.0' }
 pallet-grandpa = { default-features = false, version = '3.0.0' }
@@ -47,9 +47,11 @@ sp-transaction-pool = { default-features = false, version = '3.0.0' }
 sp-version = { default-features = false, version = '3.0.0' }
 substrate-stellar-sdk = { version = '0.1.4', default-features = false }
 
-# local dependencies
-pallet-template = { default-features = false, path = '../pallets/template', version = '3.0.0' }
 pallet-stellar-bridge = { version = "0.1.0", default-features = false, path = "../pallets/stellar-bridge" }
+
+orml-currencies = {default-features = false, version = '0.4.0'}
+orml-tokens = {default-features = false, version = '0.4.0'}
+orml-traits = {default-features = false, version = '0.4.0'}
 
 [features]
 default = ['std']
@@ -59,7 +61,6 @@ runtime-benchmarks = [
     'frame-system-benchmarking',
     'frame-system/runtime-benchmarks',
     'pallet-balances/runtime-benchmarks',
-    'pallet-template/runtime-benchmarks',
     'pallet-timestamp/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
 ]
@@ -69,13 +70,11 @@ std = [
     'frame-support/std',
     'frame-system-rpc-runtime-api/std',
     'frame-system/std',
-    'pallet-assets/std',
     'pallet-aura/std',
     'pallet-balances/std',
     'pallet-grandpa/std',
     'pallet-randomness-collective-flip/std',
     'pallet-sudo/std',
-    'pallet-template/std',
     'pallet-timestamp/std',
     'pallet-transaction-payment-rpc-runtime-api/std',
     'pallet-transaction-payment/std',
@@ -91,4 +90,7 @@ std = [
     'sp-std/std',
     'sp-transaction-pool/std',
     'sp-version/std',
+    'orml-currencies/std',
+    'orml-tokens/std',
+    'orml-traits/std',
 ]
