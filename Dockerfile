@@ -5,6 +5,7 @@ ENV CARGO_HOME=/build/node-template/.cargo
 
 COPY . .
 
+RUN rustup update
 RUN cargo build --release
 
 FROM paritytech/ci-linux:974ba3ac-20201006
