@@ -1,8 +1,8 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'eu.gcr.io/$PROJECT_ID/pendulum-prototype:$COMMIT_SHA', '.' ]
-  timeout: 5400s
-timeout: 5400s
+  timeout: 10800s
+timeout: 10800s
 images:
 - 'eu.gcr.io/$PROJECT_ID/pendulum-prototype:$COMMIT_SHA'
 
