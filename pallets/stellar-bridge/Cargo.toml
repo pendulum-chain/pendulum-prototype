@@ -22,14 +22,16 @@ sp-std = { version = '3.0', default-features = false }
 sp-keystore = { version = '0.9', optional = true }
 pallet-balances = { version = '3.0.0', default-features = false }
 pallet-transaction-payment = { version = '3.0.0', default-features = false }
-substrate-stellar-sdk = { version = '0.1.5', default-features = false }
-substrate-stellar-xdr = { version = '0.2.2', default-features = false }
+substrate-stellar-sdk = { version = '0.2.2', default-features = false }
 base64 = { version = '0.13.0', default-features = false, features = ['alloc'] }
 
 orml-currencies = {default-features = false, version = '0.4.0'}
 orml-tokens = {default-features = false, version = "0.4.0"}
 orml-traits = { default-features = false, version = '0.4.0' }
 orml-utilities = { default-features = false, version = '0.4.0' }
+
+# Common Pendulum types and utils
+pendulum-common = { version = "0.1.0", default-features = false, path = "../../common/" }
 
 [features]
 default = ['std']
@@ -45,5 +47,6 @@ std = [
 	'orml-tokens/std',
 	'orml-traits/std',
 	'orml-utilities/std',
-	'base64/std' 
+	'base64/std' ,
+	'substrate-stellar-sdk/std'
 ]

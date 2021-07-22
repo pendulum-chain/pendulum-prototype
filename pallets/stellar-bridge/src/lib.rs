@@ -21,14 +21,16 @@ use orml_traits::{MultiCurrency, MultiReservableCurrency};
 use serde::Deserialize;
 use string::String;
 
-use substrate_stellar_sdk::keypair::PublicKey as StellarPublicKey;
-use substrate_stellar_xdr::{xdr, xdr_codec::XdrCodec};
+pub use substrate_stellar_sdk as stellar;
+pub use substrate_stellar_sdk::XdrCodec;
 
 use pallet_transaction_payment::Config as PaymentConfig;
 
 use self::horizon::*;
 
 pub use pallet::*;
+
+pub use pendulum_common::currency::CurrencyId;
 
 type BalanceOf<T> =
     <<T as Config>::Currency as MultiCurrency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -85,7 +87,7 @@ pub struct DepositPayload<Currency, AccountId, Public, Balance> {
 }
 
 impl<T: SigningTypes> SignedPayload<T>
-    for DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>
+    for DepositPayload<CurrencyId, T::AccountId, T::Public, BalanceOf<T>>
 where
     T: pallet::Config,
 {
@@ -125,6 +127,7 @@ pub mod pallet {
         /// The mechanics of the ORML tokens  
         type Currency: MultiReservableCurrency<Self::AccountId>;
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
+        type CurrencyConversion: StaticLookup<Source = [u8; 4], Target = CurrencyIdOf<Self>>;
 
         type GatewayEscrowAccount: Get<&'static str>;
         type GatewayMockedAmount: Get<BalanceOf<Self>>;
@@ -337,12 +340,12 @@ pub mod pallet {
 
                         // Decode transaction to Base64 and then to Stellar XDR to get transaction details
                         let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
-                        let tx_envelope = xdr::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
+                        let tx_envelope = stellar::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
 
-                        if let xdr::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+                        if let stellar::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
                             // Source account will be our destination account
-                            if let xdr::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
-                                let pubkey = StellarPublicKey::from_binary(key).to_encoding();
+                            if let stellar::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
+                                let pubkey = stellar::PublicKey::from_binary(key).to_encoding();
                                 match str::from_utf8(&pubkey) {
                                     Ok(stellar_account_id) => debug::info!(
                                         "✔️  Source account is a valid Stellar account {:?}",
@@ -355,15 +358,15 @@ pub mod pallet {
                             }
 
                             for op in env.tx.operations.get_vec() {
-                                if let xdr::OperationBody::Payment(payment_op) = &op.body {
+                                if let stellar::types::OperationBody::Payment(payment_op) = &op.body {
                                     let dest_account =
-                                        xdr::MuxedAccount::from(payment_op.destination.clone());
+                                        stellar::MuxedAccount::from(payment_op.destination.clone());
                                     debug::info!("Muxed account {:#?}", dest_account);
 
-                                    if let xdr::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
+                                    if let stellar::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
                                         payment_op.destination
                                     {
-                                        let pubkey = StellarPublicKey::from_binary(dest_unwrapped)
+                                        let pubkey = stellar::PublicKey::from_binary(dest_unwrapped)
                                             .to_encoding();
                                         let pubkey_str = str::from_utf8(&pubkey).unwrap();
                                         if pubkey_str.eq(T::GatewayEscrowAccount::get()) {
@@ -374,21 +377,12 @@ pub mod pallet {
                                         }
                                     }
 
-                                    if let xdr::Asset::AssetTypeCreditAlphanum4(code) =
+                                    if let stellar::Asset::AssetTypeCreditAlphanum4(code) =
                                         &payment_op.asset
                                     {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
-                                        debug::info!("Asset {:#?}", asset_code);
-                                        currency = match code.asset_code {
-                                            [b'E', b'U', b'R', 0] => {
-                                                Some(T::GatewayMockedCurrencyEUR::get())
-                                            }
-                                            [b'U', b'S', b'D', b'C'] => {
-                                                Some(T::GatewayMockedCurrencyUSDC::get())
-                                            }
-                                            _ => None,
-                                        };
-
+                                        debug::info!("✔️  Asset code to be minted {:?}", asset_code);
+                                        currency = T::CurrencyConversion::lookup(code.asset_code).ok();
                                         amount =
                                             Some(T::BalanceConversion::unlookup(payment_op.amount));
                                         debug::info!("Amount {:#?}", amount);

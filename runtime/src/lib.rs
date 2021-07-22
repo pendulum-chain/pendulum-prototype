@@ -34,8 +34,10 @@ use orml_traits::parameter_type_with_key;
 use hex_literal;
 
 mod balance_conv;
+mod currency_conv;
 
 use balance_conv::BalanceConversion as StellarBalanceConversion;
+use currency_conv::CurrencyConversion as StellarCurrencyConversion;
 
 // A few exports that help ease life for downstream crates.
 pub use pallet_stellar_bridge;
@@ -328,6 +330,7 @@ parameter_types! {
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
 impl pallet_stellar_bridge::Config for Runtime {
     type BalanceConversion = StellarBalanceConversion;
+    type CurrencyConversion = StellarCurrencyConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
