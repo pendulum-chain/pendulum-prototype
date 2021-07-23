@@ -86,7 +86,7 @@ pub struct DepositPayload<Currency, AccountId, Public, Balance> {
 }
 
 impl<T: SigningTypes> SignedPayload<T>
-    for DepositPayload<CurrencyId, T::AccountId, T::Public, BalanceOf<T>>
+    for DepositPayload<CurrencyIdOf<T>, T::AccountId, T::Public, BalanceOf<T>>
 where
     T: pallet::Config,
 {
