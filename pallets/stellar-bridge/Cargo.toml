@@ -48,5 +48,6 @@ std = [
 	'orml-traits/std',
 	'orml-utilities/std',
 	'base64/std' ,
-	'substrate-stellar-sdk/std'
+	'substrate-stellar-sdk/std',
+	'pendulum-common/std'
 ]
