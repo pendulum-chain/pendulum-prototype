@@ -2,7 +2,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 mod horizon;
-mod string;
 
 use codec::{Decode, Encode};
 
@@ -19,7 +18,6 @@ use sp_std::{prelude::*, str};
 use orml_traits::{MultiCurrency, MultiReservableCurrency};
 
 use serde::Deserialize;
-use string::String;
 
 pub use substrate_stellar_sdk as stellar;
 pub use substrate_stellar_sdk::XdrCodec;
@@ -31,6 +29,7 @@ use self::horizon::*;
 pub use pallet::*;
 
 pub use pendulum_common::currency::CurrencyId;
+use pendulum_common::string::String;
 
 type BalanceOf<T> =
     <<T as Config>::Currency as MultiCurrency<<T as frame_system::Config>::AccountId>>::Balance;
