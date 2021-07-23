@@ -126,7 +126,7 @@ pub mod pallet {
         /// The mechanics of the ORML tokens  
         type Currency: MultiReservableCurrency<Self::AccountId>;
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
-        type CurrencyConversion: StaticLookup<Source = [u8; 4], Target = CurrencyIdOf<Self>>;
+        type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = [u8; 4]>;
 
         type GatewayEscrowAccount: Get<&'static str>;
         type GatewayMockedAmount: Get<BalanceOf<Self>>;
@@ -381,7 +381,8 @@ pub mod pallet {
                                     {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("✔️  Asset code to be minted {:?}", asset_code);
-                                        currency = T::CurrencyConversion::lookup(code.asset_code).ok();
+                                        currency = Some(T::CurrencyConversion::unlookup(code.asset_code));
+                                        debug::info!("currency {:#?}", currency);
                                         amount =
                                             Some(T::BalanceConversion::unlookup(payment_op.amount));
                                         debug::info!("Amount {:#?}", amount);
