@@ -10,14 +10,14 @@ impl StaticLookup for CurrencyConversion {
 
     fn lookup(currency_bytes: Self::Source) -> Result<Self::Target, LookupError> {
         if currency_bytes.len() > 4 {
-            Err(LookupError)
+            return Err(LookupError);
         } 
         Ok(CurrencyId::create_from_bytes(currency_bytes))
     }
 
     fn unlookup(currency_id: Self::Target) -> Self::Source {
         match currency_id {
-            CurrencyId::TokenSymbol(val) => val,
+            CurrencyId::TokenSymbol { code } => code,
             _ => [0, 0, 0, 0]
         }
     }
