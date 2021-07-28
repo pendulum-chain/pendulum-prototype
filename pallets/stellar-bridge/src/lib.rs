@@ -129,9 +129,6 @@ pub mod pallet {
         type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = [u8; 4]>;
 
         type GatewayEscrowAccount: Get<&'static str>;
-        type GatewayMockedAmount: Get<BalanceOf<Self>>;
-        type GatewayMockedCurrencyUSDC: Get<CurrencyIdOf<Self>>;
-        type GatewayMockedCurrencyEUR: Get<CurrencyIdOf<Self>>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
     }
 
@@ -332,7 +329,6 @@ pub mod pallet {
                     if !initial {
                         debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
-                        // let amount = T::GatewayMockedAmount::get();
                         let mut amount: Option<BalanceOf<T>> = None;
                         let destination = T::GatewayMockedDestination::get();
                         let mut currency = None;

@@ -321,9 +321,6 @@ parameter_types! {
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
-    pub const GatewayMockedAmount: Balance = 1e12 as Balance;
-    pub const GatewayMockedCurrencyUSDC: CurrencyId = CurrencyId::create_from_slice("USDC");
-    pub const GatewayMockedCurrencyEUR: CurrencyId = CurrencyId::create_from_slice("EUR");
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
 }
 
@@ -336,9 +333,6 @@ impl pallet_stellar_bridge::Config for Runtime {
     type Event = Event;
     type Currency = Currencies;
     type GatewayEscrowAccount = GatewayEscrowAccount;
-    type GatewayMockedAmount = GatewayMockedAmount;
-    type GatewayMockedCurrencyUSDC = GatewayMockedCurrencyUSDC;
-    type GatewayMockedCurrencyEUR = GatewayMockedCurrencyEUR;
     type GatewayMockedDestination = GatewayMockedDestination;
 }
 
