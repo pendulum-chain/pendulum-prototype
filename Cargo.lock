@@ -3507,7 +3507,7 @@ dependencies = [
  "generic-array 0.13.3",
  "matrixmultiply",
  "num-complex",
- "num-rational",
+ "num-rational 0.2.4",
  "num-traits",
  "rand 0.7.3",
  "rand_distr",
@@ -3607,6 +3607,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
+ "pendulum-common",
  "serde",
  "serde_json",
  "sp-api",
@@ -3685,6 +3686,17 @@ checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
 dependencies = [
  "autocfg",
  "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-rational"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d41702bd167c2df5520b384281bc111a4b5efcf7fbc4c9c222c815b07e0a6a6a"
+dependencies = [
+ "autocfg",
  "num-integer",
  "num-traits",
 ]
@@ -3950,6 +3962,7 @@ dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
  "parking_lot 0.11.1",
+ "pendulum-common",
  "serde",
  "serde_json",
  "sp-arithmetic",
@@ -3959,7 +3972,6 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "substrate-stellar-sdk",
- "substrate-stellar-xdr",
 ]
 
 [[package]]
@@ -4324,6 +4336,17 @@ name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
+
+[[package]]
+name = "pendulum-common"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "serde_json",
+ "sp-runtime",
+ "sp-std",
+]
 
 [[package]]
 name = "percent-encoding"
@@ -5394,7 +5417,7 @@ dependencies = [
  "log",
  "merlin",
  "num-bigint",
- "num-rational",
+ "num-rational 0.2.4",
  "num-traits",
  "parity-scale-codec",
  "parking_lot 0.11.1",
@@ -7247,25 +7270,20 @@ dependencies = [
 
 [[package]]
 name = "substrate-stellar-sdk"
-version = "0.1.5"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffc1ba09e528233f8e377f8c768ca7b13f974ee6444e967eb874f4fb64f85727"
+checksum = "8764321d01492721e8ee3ff25d82fc3e50332ec735343e6bae046eda842408f1"
 dependencies = [
  "base64 0.13.0",
+ "hex",
  "lazy_static",
+ "num-rational 0.4.0",
+ "serde",
+ "serde_json",
  "sha2 0.9.5",
  "sodalite",
- "sp-std",
- "substrate-stellar-xdr",
-]
-
-[[package]]
-name = "substrate-stellar-xdr"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68d258a08d467d492bcaab0414be2a0570deb2f14bf27b8ca29e00fdbe217396"
-dependencies = [
- "base64 0.13.0",
+ "sp-io",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -8191,7 +8209,7 @@ checksum = "bf617d864d25af3587aa745529f7aaa541066c876d57e050c0d0c85c61c92aff"
 dependencies = [
  "libc",
  "memory_units",
- "num-rational",
+ "num-rational 0.2.4",
  "num-traits",
  "parity-wasm 0.41.0",
  "wasmi-validation",

@@ -6,10 +6,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use codec::{Decode, Encode};
-
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
+use codec::Encode;
 
 use pallet_grandpa::fg_primitives;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
@@ -23,7 +20,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::Zero,
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiAddress, MultiSignature, RuntimeDebug, SaturatedConversion,
+    ApplyExtrinsicResult, MultiAddress, MultiSignature, SaturatedConversion,
 };
 
 use sp_std::prelude::*;
@@ -37,8 +34,10 @@ use orml_traits::parameter_type_with_key;
 use hex_literal;
 
 mod balance_conv;
+mod currency_conv;
 
 use balance_conv::BalanceConversion as StellarBalanceConversion;
+use currency_conv::CurrencyConversion as StellarCurrencyConversion;
 
 // A few exports that help ease life for downstream crates.
 pub use pallet_stellar_bridge;
@@ -54,10 +53,11 @@ pub use frame_support::{
     },
     StorageValue,
 };
-pub use pallet_balances::Call as BalancesCall;
-pub use pallet_timestamp::Call as TimestampCall;
+
 use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
+
+pub use pendulum_common::currency::CurrencyId;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -86,20 +86,6 @@ pub type Hash = sp_core::H256;
 
 /// Digest item type.
 pub type DigestItem = generic::DigestItem<Hash>;
-
-#[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, RuntimeDebug, PartialOrd, Ord)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub enum CurrencyId {
-    Native,
-    USDC,
-    EUR,
-}
-
-impl Default for CurrencyId {
-    fn default() -> Self {
-        CurrencyId::Native
-    }
-}
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -335,23 +321,18 @@ parameter_types! {
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
-    pub const GatewayMockedAmount: Balance = 1e12 as Balance;
-    pub const GatewayMockedCurrencyUSDC: CurrencyId = CurrencyId::USDC;
-    pub const GatewayMockedCurrencyEUR: CurrencyId = CurrencyId::EUR;
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
 impl pallet_stellar_bridge::Config for Runtime {
     type BalanceConversion = StellarBalanceConversion;
+    type CurrencyConversion = StellarCurrencyConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
     type Currency = Currencies;
     type GatewayEscrowAccount = GatewayEscrowAccount;
-    type GatewayMockedAmount = GatewayMockedAmount;
-    type GatewayMockedCurrencyUSDC = GatewayMockedCurrencyUSDC;
-    type GatewayMockedCurrencyEUR = GatewayMockedCurrencyEUR;
     type GatewayMockedDestination = GatewayMockedDestination;
 }
 
