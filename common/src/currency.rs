@@ -19,20 +19,24 @@ pub trait StellarAsset {
 impl StellarAsset for CurrencyId {
     fn asset_code(&self) -> Option<[u8; 4]> {
         match self {
-            CurrencyId::TokenSymbol { code} => Some(*code),
+            CurrencyId::TokenSymbol { code } => Some(*code),
             _ => None,
         }
     }
 }
 
 impl CurrencyId {
-    pub const fn create_from_slice(code: &str) -> Self {
-        let bytes = code.as_bytes();
-        let byte4 = if bytes.len() >= 4 { bytes[3] } else { 0 }; 
-        CurrencyId::TokenSymbol { code: [bytes[0], bytes[1], bytes[2], byte4] }
+    pub fn create_from_slice(slice: &str) -> Self {
+        if slice.len() <= 4 {
+            let mut code: [u8; 4] = [0; 4];
+            code[..slice.len()].copy_from_slice(slice.as_bytes());
+            CurrencyId::TokenSymbol { code }
+        } else {
+            panic!("More than 4 bytes not supported")
+        }
     }
 
-    pub const fn create_from_bytes(code:[u8; 4] ) -> Self {
+    pub fn create_from_bytes(code: [u8; 4]) -> Self {
         CurrencyId::TokenSymbol { code }
     }
 }
