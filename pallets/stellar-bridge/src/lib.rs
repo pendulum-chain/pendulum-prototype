@@ -382,8 +382,9 @@ pub mod pallet {
                                         Some(T::BalanceConversion::unlookup(payment_op.amount));
                                     currency = Some(T::CurrencyConversion::unlookup(payment_op.asset.clone()));
 
-                                    debug::info!("currency {:#?}", currency);
-                                    debug::info!("Amount {:#?}", amount);
+                                    
+                                    debug::info!("currency {:?}", currency);
+                                    debug::info!("Amount {:?}", amount);
                                 }
                             }
                         }
