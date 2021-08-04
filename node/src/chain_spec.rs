@@ -163,7 +163,7 @@ fn testnet_genesis(
         orml_tokens: Some(TokensConfig {
             endowed_accounts: endowed_accounts
                 .iter()
-                .flat_map(|x| vec![(x.clone(), CurrencyId::create_from_slice("USDC"), 10u128.pow(12))])
+                .flat_map(|x| vec![(x.clone(), CurrencyId::from("USDC"), 10u128.pow(12))])
                 .collect(),
         }),
     }

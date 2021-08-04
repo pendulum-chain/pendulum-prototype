@@ -4346,6 +4346,7 @@ dependencies = [
  "serde_json",
  "sp-runtime",
  "sp-std",
+ "substrate-stellar-sdk",
 ]
 
 [[package]]
