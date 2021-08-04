@@ -3,10 +3,12 @@ use sp_std::convert::From;
 use sp_std::convert::Into;
 use sp_std::convert::TryFrom;
 use sp_std::convert::TryInto;
+use sp_std::fmt;
+use sp_std::str;
 
-use stellar::PublicKey;
-use stellar::types::AssetAlphaNum4;
 use stellar::types::AssetAlphaNum12;
+use stellar::types::AssetAlphaNum4;
+use stellar::PublicKey;
 use substrate_stellar_sdk as stellar;
 
 use codec::{Decode, Encode};
@@ -89,14 +91,39 @@ impl TryInto<stellar::Asset> for CurrencyId {
             Self::AlphaNum4 { code, issuer } => {
                 Ok(stellar::Asset::AssetTypeCreditAlphanum4(AssetAlphaNum4 {
                     asset_code: code,
-                    issuer: PublicKey::PublicKeyTypeEd25519(issuer)
+                    issuer: PublicKey::PublicKeyTypeEd25519(issuer),
                 }))
             }
             Self::AlphaNum12 { code, issuer } => {
                 Ok(stellar::Asset::AssetTypeCreditAlphanum12(AssetAlphaNum12 {
                     asset_code: code,
-                    issuer: PublicKey::PublicKeyTypeEd25519(issuer)
+                    issuer: PublicKey::PublicKeyTypeEd25519(issuer),
                 }))
+            }
+        }
+    }
+}
+
+impl fmt::Display for CurrencyId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Native => write!(f, "PEN"),
+            Self::StellarNative => write!(f, "XLM"),
+            Self::AlphaNum4 { code, issuer } => {
+                write!(
+                    f,
+                    "{{ code: {}, issuer: {} }}",
+                    str::from_utf8(code).unwrap(),
+                    str::from_utf8(issuer).unwrap()
+                )
+            }
+            Self::AlphaNum12 { code, issuer } => {
+                write!(
+                    f,
+                    "{{ code: {}, issuer: {} }}",
+                    str::from_utf8(code).unwrap(),
+                    str::from_utf8(issuer).unwrap()
+                )
             }
         }
     }
