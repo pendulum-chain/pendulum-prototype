@@ -7,6 +7,8 @@ use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::traits::{IdentifyAccount, Verify};
+use sp_std::convert::TryFrom;
+use substrate_stellar_sdk as stellar;
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -133,6 +135,17 @@ fn testnet_genesis(
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
 ) -> GenesisConfig {
+    let stellar_usdc_asset: CurrencyId = CurrencyId::try_from((
+        "USDC",
+        stellar::PublicKey::from_encoding(
+            "GAKNDFRRWA3RPWNLTI3G4EBSD3RGNZZOY5WKWYMQ6CQTG3KIEKPYWAYC",
+        )
+        .unwrap()
+        .as_binary()
+        .clone(),
+    ))
+    .unwrap();
+
     GenesisConfig {
         frame_system: Some(SystemConfig {
             // Add Wasm runtime to storage.
@@ -166,7 +179,7 @@ fn testnet_genesis(
         orml_tokens: Some(TokensConfig {
             endowed_accounts: endowed_accounts
                 .iter()
-                .flat_map(|x| vec![(x.clone(), CurrencyId::from("USDC"), 10u128.pow(12))])
+                .flat_map(|x| vec![(x.clone(), stellar_usdc_asset, 10u128.pow(12))])
                 .collect(),
         }),
     }
