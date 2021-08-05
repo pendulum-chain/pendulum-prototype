@@ -1,4 +1,3 @@
-use sp_runtime::RuntimeDebug;
 use sp_std::convert::From;
 use sp_std::convert::Into;
 use sp_std::convert::TryFrom;
@@ -20,7 +19,7 @@ pub type AssetIssuer = [u8; 32];
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, RuntimeDebug, PartialOrd, Ord)]
+#[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum CurrencyId {
     Native,
@@ -96,7 +95,7 @@ impl TryInto<stellar::Asset> for CurrencyId {
     }
 }
 
-impl fmt::Display for CurrencyId {
+impl fmt::Debug for CurrencyId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Native => write!(f, "PEN"),
@@ -106,7 +105,12 @@ impl fmt::Display for CurrencyId {
                     f,
                     "{{ code: {}, issuer: {} }}",
                     str::from_utf8(code).unwrap(),
-                    str::from_utf8(issuer).unwrap()
+                    str::from_utf8(
+                        stellar::PublicKey::from_binary(*issuer)
+                            .to_encoding()
+                            .as_slice()
+                    )
+                    .unwrap()
                 )
             }
             Self::AlphaNum12 { code, issuer } => {
@@ -114,7 +118,12 @@ impl fmt::Display for CurrencyId {
                     f,
                     "{{ code: {}, issuer: {} }}",
                     str::from_utf8(code).unwrap(),
-                    str::from_utf8(issuer).unwrap()
+                    str::from_utf8(
+                        stellar::PublicKey::from_binary(*issuer)
+                            .to_encoding()
+                            .as_slice()
+                    )
+                    .unwrap()
                 )
             }
         }
