@@ -17,8 +17,6 @@ pub type Bytes4 = [u8; 4];
 pub type Bytes12 = [u8; 12];
 pub type AssetIssuer = [u8; 32];
 
-const DEFAULT_ISSUER: AssetIssuer = [0; 32];
-
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
@@ -72,12 +70,6 @@ impl From<stellar::Asset> for CurrencyId {
                 }
             }
         }
-    }
-}
-
-impl From<&'static str> for CurrencyId {
-    fn from(asset_code: &'static str) -> Self {
-        Self::try_from((asset_code, DEFAULT_ISSUER)).unwrap()
     }
 }
 
