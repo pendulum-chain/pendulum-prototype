@@ -385,28 +385,38 @@ where
 
 //--------------------- Begining of pallet-contracts configuration ---------------------
 
+// Money
+pub const MILLICENTS: Balance = 1_000_000_000;
+pub const CENTS: Balance = 1_000 * MILLICENTS;
+pub const DOLLARS: Balance = 100 * CENTS;
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+
+pub const CANS: Balance = CENTS;
+
+const fn deposit(items: u32, bytes: u32) -> Balance {
+    items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+}
+
 parameter_types! {
-    pub TombstoneDeposit: Balance = deposit(
-        1,
-        <pallet_contracts::Pallet<Runtime>>::contract_info_size(),
-    );
-    pub DepositPerContract: Balance = TombstoneDeposit::get();
-    pub const DepositPerStorageByte: Balance = deposit(0, 1);
-    pub const DepositPerStorageItem: Balance = deposit(1, 0);
-    pub RentFraction: Perbill = Perbill::from_rational(1u32, 30 * DAYS);
-    pub const SurchargeReward: Balance = 150 * MILLICENTS;
-    pub const SignedClaimHandicap: u32 = 2;
-    pub const MaxValueSize: u32 = 16 * 1024;
-    // The lazy deletion runs inside on_initialize.
-    pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
-        RuntimeBlockWeights::get().max_block;
-    // The weight needed for decoding the queue should be less or equal than a fifth
-    // of the overall weight dedicated to the lazy deletion.
-    pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
-            <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
-            <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
-        )) / 5) as u32;
-    pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
+   pub const TombstoneDeposit: Balance = deposit(1, 1);
+   pub const DepositPerContract: Balance = TombstoneDeposit::get();
+   pub const DepositPerStorageByte: Balance = deposit(0, 1);
+   pub const DepositPerStorageItem: Balance = deposit(1, 0);
+   pub RentFraction: Perbill = Perbill::from_rational_approximation(1u32, 30 * DAYS);
+   pub const SurchargeReward: Balance = 150 * MILLICENTS;
+   pub const SignedClaimHandicap: u32 = 2;
+   pub const MaxDepth: u32 = 32;
+   pub const MaxValueSize: u32 = 16 * 1024;
+   // The lazy deletion runs inside on_initialize.
+   pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
+      BlockWeights::get().max_block;
+   // The weight needed for decoding the queue should be less or equal than a fifth
+   // of the overall weight dedicated to the lazy deletion.
+   pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
+         <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
+         <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
+      )) / 5) as u32;
+   pub MaxCodeSize: u32 = 128 * 1024;
 }
 
 impl pallet_contracts::Config for Runtime {
@@ -414,14 +424,6 @@ impl pallet_contracts::Config for Runtime {
     type Randomness = RandomnessCollectiveFlip;
     type Currency = Balances;
     type Event = Event;
-    type Call = Call;
-    /// The safest default is to allow no calls at all.
-    ///
-    /// Runtimes should whitelist dispatchables that are allowed to be called from contracts
-    /// and make sure they are stable. Dispatchables exposed to contracts are not allowed to
-    /// change because that would break already deployed contracts. The `Call` structure itself
-    /// is not allowed to change the indices of existing pallets, too.
-    type CallFilter = DenyAll;
     type RentPayment = ();
     type SignedClaimHandicap = SignedClaimHandicap;
     type TombstoneDeposit = TombstoneDeposit;
@@ -430,15 +432,15 @@ impl pallet_contracts::Config for Runtime {
     type DepositPerStorageItem = DepositPerStorageItem;
     type RentFraction = RentFraction;
     type SurchargeReward = SurchargeReward;
-    type CallStack = [pallet_contracts::Frame<Self>; 31];
-    type WeightPrice = pallet_transaction_payment::Pallet<Self>;
+    type MaxDepth = MaxDepth;
+    type MaxValueSize = MaxValueSize;
+    type WeightPrice = pallet_transaction_payment::Module<Self>;
     type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
     type ChainExtension = ();
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
-    type Schedule = Schedule;
+    type MaxCodeSize = MaxCodeSize;
 }
-
 //--------------------- End of pallet-contracts configuration ---------------------
 impl frame_system::offchain::SigningTypes for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
@@ -468,7 +470,7 @@ construct_runtime!(
         Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
-        Contracts: pallet_contracts::{Pallet, Call, Storage, Event<T>},
+        Contracts: pallet_contracts::{Module, Call, Config<T>, Storage, Event<T>},
 
         // ORML modules for handling Multi Currency
         Currencies: orml_currencies::{Module, Call, Event<T>},
