@@ -398,25 +398,25 @@ const fn deposit(items: u32, bytes: u32) -> Balance {
 }
 
 parameter_types! {
-   pub const TombstoneDeposit: Balance = deposit(1, 1);
-   pub const DepositPerContract: Balance = TombstoneDeposit::get();
-   pub const DepositPerStorageByte: Balance = deposit(0, 1);
-   pub const DepositPerStorageItem: Balance = deposit(1, 0);
-   pub RentFraction: Perbill = Perbill::from_rational_approximation(1u32, 30 * DAYS);
-   pub const SurchargeReward: Balance = 150 * MILLICENTS;
-   pub const SignedClaimHandicap: u32 = 2;
-   pub const MaxDepth: u32 = 32;
-   pub const MaxValueSize: u32 = 16 * 1024;
-   // The lazy deletion runs inside on_initialize.
-   pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
-      BlockWeights::get().max_block;
-   // The weight needed for decoding the queue should be less or equal than a fifth
-   // of the overall weight dedicated to the lazy deletion.
-   pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
-         <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
-         <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
-      )) / 5) as u32;
-   pub MaxCodeSize: u32 = 128 * 1024;
+    pub const TombstoneDeposit: Balance = deposit(1, 1);
+    pub const DepositPerContract: Balance = TombstoneDeposit::get();
+    pub const DepositPerStorageByte: Balance = deposit(0, 1);
+    pub const DepositPerStorageItem: Balance = deposit(1, 0);
+    pub RentFraction: Perbill = Perbill::from_rational_approximation(1u32, 30 * DAYS);
+    pub const SurchargeReward: Balance = 150 * MILLICENTS;
+    pub const SignedClaimHandicap: u32 = 2;
+    pub const MaxDepth: u32 = 32;
+    pub const MaxValueSize: u32 = 16 * 1024;
+    // The lazy deletion runs inside on_initialize.
+    pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
+        BlockWeights::get().max_block;
+    // The weight needed for decoding the queue should be less or equal than a fifth
+    // of the overall weight dedicated to the lazy deletion.
+    pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
+            <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
+            <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
+        )) / 5) as u32;
+    pub MaxCodeSize: u32 = 128 * 1024;
 }
 
 impl pallet_contracts::Config for Runtime {
@@ -643,6 +643,33 @@ impl_runtime_apis! {
             TransactionPayment::query_fee_details(uxt, len)
         }
     }
+
+    impl pallet_contracts_rpc_runtime_api::ContractsApi<Block, AccountId, Balance, BlockNumber>
+		for Runtime
+	{
+		fn call(
+			origin: AccountId,
+			dest: AccountId,
+			value: Balance,
+			gas_limit: u64,
+			input_data: Vec<u8>,
+		) -> pallet_contracts_primitives::ContractExecResult {
+			Contracts::bare_call(origin, dest, value, gas_limit, input_data )
+		}
+
+		fn get_storage(
+			address: AccountId,
+			key: [u8; 32],
+		) -> pallet_contracts_primitives::GetStorageResult {
+			Contracts::get_storage(address, key)
+		}
+
+		fn rent_projection(
+			address: AccountId,
+		) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
+			Contracts::rent_projection(address)
+		}
+	}
 
     #[cfg(feature = "runtime-benchmarks")]
     impl frame_benchmarking::Benchmark<Block> for Runtime {
