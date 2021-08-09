@@ -1,5 +1,5 @@
 use node_template_runtime::{
-    AccountId, AuraConfig, BalancesConfig, CurrencyId, GenesisConfig, GrandpaConfig, Signature,
+    AccountId, AuraConfig, BalancesConfig, ContractsConfig, CurrencyId, GenesisConfig, GrandpaConfig, Signature,
     SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
@@ -149,6 +149,9 @@ fn testnet_genesis(
         }),
         pallet_aura: Some(AuraConfig {
             authorities: initial_authorities.iter().map(|x| (x.0.clone())).collect(),
+        }),
+        pallet_contracts: Some(ContractsConfig {
+            current_schedule: pallet_contracts::Schedule::default(),
         }),
         pallet_grandpa: Some(GrandpaConfig {
             authorities: initial_authorities
