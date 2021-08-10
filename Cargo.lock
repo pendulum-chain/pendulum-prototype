@@ -7265,8 +7265,12 @@ dependencies = [
  "hex",
  "lazy_static",
  "num-rational 0.4.0",
+ "serde",
+ "serde_json",
  "sha2 0.9.5",
  "sodalite",
+ "sp-io",
+ "sp-runtime",
  "sp-std",
 ]
 

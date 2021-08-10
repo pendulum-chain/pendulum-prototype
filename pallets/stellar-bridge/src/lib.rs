@@ -336,7 +336,10 @@ pub mod pallet {
             let transaction = Self::create_withdrawal_tx(&stellar_address, seq_no as i64, asset, amount)?;
             let signed_envelope = Self::sign_stellar_tx(transaction, T::GatewayEscrowKeypair::get())?;
 
-            Self::submit_stellar_tx(signed_envelope)
+            let result = Self::submit_stellar_tx(signed_envelope);
+            debug::info!("✔️  Successfully submitted withdrawal transaction to Stellar, crediting {}", str::from_utf8(stellar_address.to_encoding().as_slice()).unwrap());
+
+            result
         }
 
         fn pop_queued_withdrawal() -> Result<Option<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>, Error<T>> {
@@ -391,30 +394,22 @@ pub mod pallet {
         }
 
         fn try_once_submit_stellar_tx(tx: &stellar::TransactionEnvelope) -> Result<(), Error<T>> {
-            let tx_xdr_vec = tx.to_base64_xdr();
-            let tx_xdr_str = str::from_utf8(tx_xdr_vec.as_slice()).unwrap();
-            let request_url = String::from("https://horizon-testnet.stellar.org/transactions?tx=") + tx_xdr_str;
+            let horizon_base_url = "https://horizon-testnet.stellar.org";
+            let horizon = stellar::horizon::Horizon::new(horizon_base_url);
 
-            debug::info!("Submitting transaction to Stellar network: {}", tx_xdr_str);
+            debug::info!("Submitting transaction to Stellar network: {}", horizon_base_url);
 
-            let request = Request::post(request_url.as_str(), vec![] as Vec<&[u8]>);
-            let timeout =
-                sp_io::offchain::timestamp().add(SUBMISSION_TIMEOUT_PERIOD);
-
-            let pending = request
-                .deadline(timeout)
-                .send()?;
-
-            let response = pending
-                .try_wait(timeout)
-                .map_err(|_| <Error<T>>::HttpFetchingError)?
-                .map_err(|_| <Error<T>>::HttpFetchingError)?;
-
-            if response.code != 200 {
-                debug::error!("Unexpected HTTP request status code: {}", response.code);
-                debug::error!("  Response body: {}", str::from_utf8(response.body().collect::<Vec<u8>>().as_slice())?);
-                return Err(<Error<T>>::HttpFetchingError);
-            }
+            let _response = horizon.submit_transaction(&tx, SUBMISSION_TIMEOUT_PERIOD.millis(), true)
+                .map_err(|error| {
+                    match error {
+                        stellar::horizon::FetchError::UnexpectedResponseStatus { status, body } => {
+                            debug::error!("Unexpected HTTP request status code: {}", status);
+                            debug::error!("  Response body: {}", str::from_utf8(&body).unwrap());
+                        },
+                        _ => ()
+                    }
+                    <Error<T>>::HttpFetchingError
+                })?;
 
             Ok(())
         }
@@ -563,7 +558,7 @@ pub mod pallet {
                                 if let stellar::types::OperationBody::Payment(payment_op) = &op.body {
                                     let dest_account =
                                         MuxedAccount::from(payment_op.destination.clone());
-                                    debug::info!("Muxed account {:#?}", dest_account);
+                                    debug::info!("Muxed account {}", str::from_utf8(dest_account.to_encoding().as_slice()).unwrap());
 
                                     if let MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
                                         payment_op.destination

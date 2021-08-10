@@ -56,7 +56,6 @@ pub struct HorizonAccountResponse {
     pub account_id: Vec<u8>,
     #[serde(deserialize_with = "de_string_to_bytes")]
     pub sequence: Vec<u8>,
-
     // ...
 }
 
