@@ -92,7 +92,10 @@ pub struct DepositPayload<Currency, AccountId, Public, Balance> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Withdrawal<Balance, Currency, Public>
-  where Balance: Encode + Decode, Currency: Encode + Decode, Public: Encode + Decode
+where
+    Balance: Encode + Decode,
+    Currency: Encode + Decode,
+    Public: Encode + Decode,
 {
     amount: Balance,
     currency: Currency,
@@ -123,9 +126,9 @@ pub mod pallet {
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
     use sp_runtime::offchain::http::{Request, Response};
     use sp_runtime::offchain::HttpError;
+    use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
     use stellar::{Asset, MuxedAccount, SecretKey, StellarSdkError, TransactionEnvelope, XdrCodec};
-    use sp_std::str::Utf8Error;
 
     #[pallet::config]
     pub trait Config:
@@ -213,20 +216,21 @@ pub mod pallet {
 
             let submission_result = (|| {
                 Self::pop_queued_withdrawal()
-                    .map(|maybe_withdrawal| {
-                        match maybe_withdrawal {
-                            Some(withdrawal) => {
-                                Self::execute_withdrawal(withdrawal)
-                            },
-                            None => Ok(())
-                        }
+                    .map(|maybe_withdrawal| match maybe_withdrawal {
+                        Some(withdrawal) => Self::execute_withdrawal(withdrawal),
+                        None => Ok(()),
                     })
                     .flatten()
             })();
 
-            submission_result.map_err(|error| {
-                debug::error!("🚨 Processing outbound Stellar tx queue failed: {:?}", error);
-            }).ok();
+            submission_result
+                .map_err(|error| {
+                    debug::error!(
+                        "🚨 Processing outbound Stellar tx queue failed: {:?}",
+                        error
+                    );
+                })
+                .ok();
         }
     }
 
@@ -266,9 +270,8 @@ pub mod pallet {
         pub fn withdraw_to_stellar(
             origin: OriginFor<T>,
             currency_id: CurrencyIdOf<T>,
-            amount: BalanceOf<T>
-        ) -> DispatchResultWithPostInfo
-        {
+            amount: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
             let pendulum_account_id = ensure_signed(origin)?;
             let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
 
@@ -287,31 +290,34 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn create_withdrawal_tx(stellar_addr: &stellar::PublicKey, seq_num: i64, asset: stellar::Asset, amount: BalanceOf<T>) -> Result<stellar::Transaction, Error<T>> {
+        fn create_withdrawal_tx(
+            stellar_addr: &stellar::PublicKey,
+            seq_num: i64,
+            asset: stellar::Asset,
+            amount: BalanceOf<T>,
+        ) -> Result<stellar::Transaction, Error<T>> {
             let destination_addr = stellar_addr.as_binary();
             let source_pubkey = stellar::PublicKey::from_encoding(T::GatewayEscrowAccount::get())
                 .map_err(|_| <Error<T>>::StellarAddressParsingError)?;
 
-            let mut tx = stellar::Transaction::new(
-                source_pubkey,
-                seq_num,
-                Some(10_000),
-                None,
-                None,
-            )?;
+            let mut tx =
+                stellar::Transaction::new(source_pubkey, seq_num, Some(10_000), None, None)?;
 
-            tx.append_operation(
-                stellar::Operation::new_payment(
-                    stellar::MuxedAccount::KeyTypeEd25519(*destination_addr),
-                    asset,
-                    stellar::StroopAmount(T::BalanceConversion::lookup(amount).map_err(|_| <Error<T>>::BalanceConversionError)?),
-                )?
-            )?;
+            tx.append_operation(stellar::Operation::new_payment(
+                stellar::MuxedAccount::KeyTypeEd25519(*destination_addr),
+                asset,
+                stellar::StroopAmount(
+                    T::BalanceConversion::lookup(amount)
+                        .map_err(|_| <Error<T>>::BalanceConversionError)?,
+                ),
+            )?)?;
 
             Ok(tx)
         }
 
-        fn execute_withdrawal(withdrawal: Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>) -> Result<(), Error<T>> {
+        fn execute_withdrawal(
+            withdrawal: Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>,
+        ) -> Result<(), Error<T>> {
             let amount = withdrawal.amount;
             let currency_id = withdrawal.currency;
             let pendulum_account_id = withdrawal.pendulum_address;
@@ -333,40 +339,64 @@ pub mod pallet {
             drop(imbalance);
 
             let seq_no = Self::fetch_latest_seq_no(escrow_address).map(|seq_no| seq_no + 1)?;
-            let transaction = Self::create_withdrawal_tx(&stellar_address, seq_no as i64, asset, amount)?;
-            let signed_envelope = Self::sign_stellar_tx(transaction, T::GatewayEscrowKeypair::get())?;
+            let transaction =
+                Self::create_withdrawal_tx(&stellar_address, seq_no as i64, asset, amount)?;
+            let signed_envelope =
+                Self::sign_stellar_tx(transaction, T::GatewayEscrowKeypair::get())?;
 
             let result = Self::submit_stellar_tx(signed_envelope);
-            debug::info!("✔️  Successfully submitted withdrawal transaction to Stellar, crediting {}", str::from_utf8(stellar_address.to_encoding().as_slice()).unwrap());
+            debug::info!(
+                "✔️  Successfully submitted withdrawal transaction to Stellar, crediting {}",
+                str::from_utf8(stellar_address.to_encoding().as_slice()).unwrap()
+            );
 
             result
         }
 
-        fn pop_queued_withdrawal() -> Result<Option<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>, Error<T>> {
+        fn pop_queued_withdrawal(
+        ) -> Result<Option<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>, Error<T>>
+        {
             // TODO: Should use VecDeque or at least Vec instead, but not trivial to do using offchain index
-            let mut pending_withdrawal_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(b"stellar-bridge::pending-withdrawal");
+            let mut pending_withdrawal_storage =
+                sp_runtime::offchain::storage::StorageValueRef::persistent(
+                    b"stellar-bridge::pending-withdrawal",
+                );
 
-            match pending_withdrawal_storage.get::<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>() {
+            match pending_withdrawal_storage
+                .get::<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>()
+            {
                 Some(Some(withdrawal)) => {
-                    debug::info!("Found queued withdrawal. Clearing it from storage and returning it…", );
+                    debug::info!(
+                        "Found queued withdrawal. Clearing it from storage and returning it…",
+                    );
                     pending_withdrawal_storage.clear();
                     Ok(Some(withdrawal))
-                },
-                _ => Ok(None)
+                }
+                _ => Ok(None),
             }
         }
 
-        fn queue_withdrawal(pendulum_address: T::AccountId, currency: CurrencyIdOf<T>, amount: BalanceOf<T>) {
+        fn queue_withdrawal(
+            pendulum_address: T::AccountId,
+            currency: CurrencyIdOf<T>,
+            amount: BalanceOf<T>,
+        ) {
             let withdrawal = Withdrawal {
                 amount,
                 currency,
                 pendulum_address,
             };
-            sp_io::offchain_index::set(b"stellar-bridge::pending-withdrawal", withdrawal.encode().as_slice());
+            sp_io::offchain_index::set(
+                b"stellar-bridge::pending-withdrawal",
+                withdrawal.encode().as_slice(),
+            );
             debug::info!("Wrote withdrawal data into offchain worker storage.");
         }
 
-        fn sign_stellar_tx(tx: stellar::types::Transaction, secret_key: SecretKey) -> Result<stellar::TransactionEnvelope, Error<T>> {
+        fn sign_stellar_tx(
+            tx: stellar::types::Transaction,
+            secret_key: SecretKey,
+        ) -> Result<stellar::TransactionEnvelope, Error<T>> {
             let mut envelope = tx.into_transaction_envelope();
             envelope.sign(&TEST_NETWORK, vec![&secret_key])?;
 
@@ -382,7 +412,7 @@ pub mod pallet {
                 match Self::try_once_submit_stellar_tx(&tx) {
                     Ok(result) => {
                         return Ok(result);
-                    },
+                    }
                     Err(error) => {
                         last_error = Some(error);
                     }
@@ -397,16 +427,20 @@ pub mod pallet {
             let horizon_base_url = "https://horizon-testnet.stellar.org";
             let horizon = stellar::horizon::Horizon::new(horizon_base_url);
 
-            debug::info!("Submitting transaction to Stellar network: {}", horizon_base_url);
+            debug::info!(
+                "Submitting transaction to Stellar network: {}",
+                horizon_base_url
+            );
 
-            let _response = horizon.submit_transaction(&tx, SUBMISSION_TIMEOUT_PERIOD.millis(), true)
+            let _response = horizon
+                .submit_transaction(&tx, SUBMISSION_TIMEOUT_PERIOD.millis(), true)
                 .map_err(|error| {
                     match error {
                         stellar::horizon::FetchError::UnexpectedResponseStatus { status, body } => {
                             debug::error!("Unexpected HTTP request status code: {}", status);
                             debug::error!("  Response body: {}", str::from_utf8(&body).unwrap());
-                        },
-                        _ => ()
+                        }
+                        _ => (),
                     }
                     <Error<T>>::HttpFetchingError
                 })?;
@@ -418,12 +452,9 @@ pub mod pallet {
             debug::info!("Sending request to: {}", request_url);
 
             let request = Request::get(request_url);
-            let timeout =
-                sp_io::offchain::timestamp().add(FETCH_TIMEOUT_PERIOD);
+            let timeout = sp_io::offchain::timestamp().add(FETCH_TIMEOUT_PERIOD);
 
-            let pending = request
-                .deadline(timeout)
-                .send()?;
+            let pending = request.deadline(timeout).send()?;
 
             let response = pending
                 .try_wait(timeout)
@@ -432,7 +463,10 @@ pub mod pallet {
 
             if response.code != 200 {
                 debug::error!("Unexpected HTTP request status code: {}", response.code);
-                debug::error!("  Response body: {}", str::from_utf8(response.body().collect::<Vec<u8>>().as_slice())?);
+                debug::error!(
+                    "  Response body: {}",
+                    str::from_utf8(response.body().collect::<Vec<u8>>().as_slice())?
+                );
                 return Err(<Error<T>>::HttpFetchingError);
             }
 
@@ -440,16 +474,17 @@ pub mod pallet {
         }
 
         fn fetch_latest_seq_no(stellar_addr: &str) -> Result<u64, Error<T>> {
-            let request_url = String::from("https://horizon-testnet.stellar.org/accounts/") + stellar_addr;
+            let request_url =
+                String::from("https://horizon-testnet.stellar.org/accounts/") + stellar_addr;
 
-            let response = Self::fetch_from_remote(request_url.as_str())
-                .map_err(|e| {
-                    debug::error!("fetch_latest_seq_no error: {:?}", e);
-                    <Error<T>>::HttpFetchingError
-                })?;
+            let response = Self::fetch_from_remote(request_url.as_str()).map_err(|e| {
+                debug::error!("fetch_latest_seq_no error: {:?}", e);
+                <Error<T>>::HttpFetchingError
+            })?;
 
             let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
-            let resp_str = str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
+            let resp_str =
+                str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
             let horizon_response: HorizonAccountResponse =
@@ -466,14 +501,14 @@ pub mod pallet {
                 + T::GatewayEscrowAccount::get()
                 + "/transactions?order=desc&limit=1";
 
-            let response = Self::fetch_from_remote(request_url.as_str())
-                .map_err(|e| {
-                    debug::error!("fetch_latest_txs error: {:?}", e);
-                    <Error<T>>::HttpFetchingError
-                })?;
+            let response = Self::fetch_from_remote(request_url.as_str()).map_err(|e| {
+                debug::error!("fetch_latest_txs error: {:?}", e);
+                <Error<T>>::HttpFetchingError
+            })?;
 
             let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
-            let resp_str = str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
+            let resp_str =
+                str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
 
             // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
             let horizon_response: HorizonTransactionsResponse =
@@ -514,7 +549,9 @@ pub mod pallet {
 
             let latest_tx_id_utf8 = &tx.id;
 
-            let id_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(b"stellar-bridge:last-tx-id");
+            let id_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(
+                b"stellar-bridge:last-tx-id",
+            );
 
             let prev_read = id_storage.get::<Vec<u8>>();
             let initial = !matches!(prev_read, Some(Some(_)));
@@ -555,10 +592,15 @@ pub mod pallet {
                             }
 
                             for op in env.tx.operations.get_vec() {
-                                if let stellar::types::OperationBody::Payment(payment_op) = &op.body {
+                                if let stellar::types::OperationBody::Payment(payment_op) = &op.body
+                                {
                                     let dest_account =
                                         MuxedAccount::from(payment_op.destination.clone());
-                                    debug::info!("Muxed account {}", str::from_utf8(dest_account.to_encoding().as_slice()).unwrap());
+                                    debug::info!(
+                                        "Muxed account {}",
+                                        str::from_utf8(dest_account.to_encoding().as_slice())
+                                            .unwrap()
+                                    );
 
                                     if let MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
                                         payment_op.destination
@@ -574,8 +616,7 @@ pub mod pallet {
                                         }
                                     }
 
-                                    if let Asset::AssetTypeCreditAlphanum4(code) =
-                                        &payment_op.asset
+                                    if let Asset::AssetTypeCreditAlphanum4(code) = &payment_op.asset
                                     {
                                         let asset_code = str::from_utf8(&code.asset_code).ok();
                                         debug::info!("Asset {:#?}", asset_code);
@@ -691,7 +732,7 @@ pub mod pallet {
         fn from(error: StellarSdkError) -> Self {
             match error {
                 StellarSdkError::ExceedsMaximumLength { .. } => Self::ExceedsMaximumLengthError,
-                _ => Self::StellarSdkError
+                _ => Self::StellarSdkError,
             }
         }
     }
