@@ -391,6 +391,10 @@ where
 pub struct BalanceChainExtension;
 use sp_runtime::DispatchError;
 
+// FIXME: Removing this will result in `Currencies::total_balance` not being found
+// Does not really make sense but this import should stay for now
+use orml_traits::MultiCurrency;
+
 type Input = [u8; 36]; // First 32 bit are AccountId & last 4 bit are CurrencyId
 
 impl ChainExtension<Runtime> for BalanceChainExtension {
