@@ -54,6 +54,9 @@ pub use frame_support::{
     StorageValue,
 };
 
+use pallet_contracts::chain_extension::{
+    ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
+};
 use pallet_contracts::weights::WeightInfo;
 
 use pallet_transaction_payment::CurrencyAdapter;
@@ -383,6 +386,65 @@ where
     }
 }
 
+//--------------------- Chain Extension --------------------------
+
+pub struct BalanceChainExtension;
+use sp_runtime::DispatchError;
+
+type Input = [u8; 36]; // First 32 bit are AccountId & last 4 bit are CurrencyId
+
+impl ChainExtension<Runtime> for BalanceChainExtension {
+    fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+    where
+        <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+    {
+        match func_id {
+            1101 => {
+                let mut env = env.buf_in_buf_out();
+                let input = env.read_as::<Input>();
+                match input {
+                    Ok(input) => {
+                        let mut account_array: [u8; 32] = Default::default();
+                        account_array.copy_from_slice(&input[0..32]);
+                        let account_id = AccountId::from(account_array);
+
+                        let mut token_array: [u8; 4] = Default::default();
+                        token_array.copy_from_slice(&input[32..]);
+                        let currency_id = CurrencyId::create_from_bytes(token_array);
+
+                        let balance = Currencies::total_balance(currency_id, &account_id);
+
+                        debug::info!(
+                            "input: {:?}, account_id: {:?}, token_id: {:?}, balance: {:?}",
+                            input,
+                            account_id,
+                            currency_id,
+                            balance
+                        );
+
+                        let ret_val = balance.encode();
+                        env.write(&ret_val, false, None).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to fetch balance")
+                        })?;
+                    }
+                    Err(err) => {
+                        debug::info!("encountered error: {:?}", err);
+                    }
+                }
+            }
+            _ => {
+                // error!("Called an unregistered `func_id`: {:}", func_id);
+                return Err(DispatchError::Other("Unimplemented func_id"));
+            }
+        }
+        Ok(RetVal::Converging(0))
+    }
+
+    fn enabled() -> bool {
+        true
+    }
+}
+
 //--------------------- Begining of pallet-contracts configuration ---------------------
 
 // Money
@@ -436,7 +498,7 @@ impl pallet_contracts::Config for Runtime {
     type MaxValueSize = MaxValueSize;
     type WeightPrice = pallet_transaction_payment::Module<Self>;
     type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
-    type ChainExtension = ();
+    type ChainExtension = BalanceChainExtension;
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type MaxCodeSize = MaxCodeSize;
@@ -645,31 +707,31 @@ impl_runtime_apis! {
     }
 
     impl pallet_contracts_rpc_runtime_api::ContractsApi<Block, AccountId, Balance, BlockNumber>
-		for Runtime
-	{
-		fn call(
-			origin: AccountId,
-			dest: AccountId,
-			value: Balance,
-			gas_limit: u64,
-			input_data: Vec<u8>,
-		) -> pallet_contracts_primitives::ContractExecResult {
-			Contracts::bare_call(origin, dest, value, gas_limit, input_data )
-		}
+        for Runtime
+    {
+        fn call(
+            origin: AccountId,
+            dest: AccountId,
+            value: Balance,
+            gas_limit: u64,
+            input_data: Vec<u8>,
+        ) -> pallet_contracts_primitives::ContractExecResult {
+            Contracts::bare_call(origin, dest, value, gas_limit, input_data )
+        }
 
-		fn get_storage(
-			address: AccountId,
-			key: [u8; 32],
-		) -> pallet_contracts_primitives::GetStorageResult {
-			Contracts::get_storage(address, key)
-		}
+        fn get_storage(
+            address: AccountId,
+            key: [u8; 32],
+        ) -> pallet_contracts_primitives::GetStorageResult {
+            Contracts::get_storage(address, key)
+        }
 
-		fn rent_projection(
-			address: AccountId,
-		) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
-			Contracts::rent_projection(address)
-		}
-	}
+        fn rent_projection(
+            address: AccountId,
+        ) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
+            Contracts::rent_projection(address)
+        }
+    }
 
     #[cfg(feature = "runtime-benchmarks")]
     impl frame_benchmarking::Benchmark<Block> for Runtime {
