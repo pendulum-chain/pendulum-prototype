@@ -45,9 +45,10 @@ sp-session = { default-features = false, version = '3.0.0' }
 sp-std = { default-features = false, version = '3.0.0' }
 sp-transaction-pool = { default-features = false, version = '3.0.0' }
 sp-version = { default-features = false, version = '3.0.0' }
-substrate-stellar-sdk = { version = '0.2.0', default-features = false }
+substrate-stellar-sdk = { version = '0.2.2', default-features = false }
 
 pallet-stellar-bridge = { version = "0.1.0", default-features = false, path = "../pallets/stellar-bridge" }
+pendulum-common = { version = "0.1.0", default-features = false, path = "../common/" }
 
 orml-currencies = {default-features = false, version = '0.4.0'}
 orml-tokens = {default-features = false, version = '0.4.0'}
@@ -78,6 +79,7 @@ std = [
     'pallet-timestamp/std',
     'pallet-transaction-payment-rpc-runtime-api/std',
     'pallet-transaction-payment/std',
+    'pendulum-common/std',
     'serde',
     'sp-api/std',
     'sp-block-builder/std',
