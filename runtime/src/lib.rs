@@ -33,9 +33,11 @@ use orml_traits::parameter_type_with_key;
 
 use hex_literal;
 
+mod address_conv;
 mod balance_conv;
 mod currency_conv;
 
+use address_conv::AddressConversion as StellarAddressConversion;
 use balance_conv::BalanceConversion as StellarBalanceConversion;
 use currency_conv::CurrencyConversion as StellarCurrencyConversion;
 
@@ -61,6 +63,9 @@ use pallet_contracts::weights::WeightInfo;
 
 use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
+
+use stellar::SecretKey;
+use substrate_stellar_sdk as stellar;
 
 pub use pendulum_common::currency::CurrencyId;
 
@@ -326,11 +331,15 @@ parameter_types! {
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
     pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
+    pub GatewayEscrowKeypair: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
+    pub GatewayMockedStellarAsset: stellar::Asset = stellar::Asset::AssetTypeNative;
+    pub GatewayMockedWithdrawalDestination: &'static str = "GAKNDFRRWA3RPWNLTI3G4EBSD3RGNZZOY5WKWYMQ6CQTG3KIEKPYWAYC";
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
 impl pallet_stellar_bridge::Config for Runtime {
+    type AddressConversion = StellarAddressConversion;
     type BalanceConversion = StellarBalanceConversion;
     type CurrencyConversion = StellarCurrencyConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
@@ -338,7 +347,10 @@ impl pallet_stellar_bridge::Config for Runtime {
     type Event = Event;
     type Currency = Currencies;
     type GatewayEscrowAccount = GatewayEscrowAccount;
+    type GatewayEscrowKeypair = GatewayEscrowKeypair;
     type GatewayMockedDestination = GatewayMockedDestination;
+    type GatewayMockedStellarAsset = GatewayMockedStellarAsset;
+    type GatewayMockedWithdrawalDestination = GatewayMockedWithdrawalDestination;
 }
 
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;

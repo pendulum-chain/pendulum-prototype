@@ -63,7 +63,11 @@ impl SubstrateCli for Cli {
 
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
-    let cli = Cli::from_args();
+    let mut cli = Cli::from_args();
+
+    // Make sure that offchain worker indexing is enabled, even without `--enable-offchain-indexing true`
+    // (Otherwise the Stellar bridge will not work as of Aug 10 2021)
+    cli.run.offchain_worker_params.indexing_enabled = true;
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli),
