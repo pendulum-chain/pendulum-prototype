@@ -396,12 +396,15 @@ use sp_runtime::DispatchError;
 use orml_traits::MultiCurrency;
 
 type Input = [u8; 36]; // First 32 bit are AccountId & last 4 bit are CurrencyId
+type Input2 = [u8; 68 + 16];
 
 impl ChainExtension<Runtime> for BalanceChainExtension {
     fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
     where
         <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
     {
+        debug::info!("Call chain extension: {:?}", func_id,);
+
         match func_id {
             1101 => {
                 let mut env = env.buf_in_buf_out();
@@ -436,6 +439,58 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
                     }
                 }
             }
+
+            1102 => {
+                let mut env = env.buf_in_buf_out();
+                let input = env.read_as::<Input2>();
+                match input {
+                    Ok(input) => {
+                        debug::info!("input: {:?}", input);
+
+                        let mut from_account_array: [u8; 32] = Default::default();
+                        from_account_array.copy_from_slice(&input[0..32]);
+                        let from_account_id = AccountId::from(from_account_array);
+
+                        let mut to_account_array: [u8; 32] = Default::default();
+                        to_account_array.copy_from_slice(&input[32..64]);
+                        let to_account_id = AccountId::from(to_account_array);
+
+                        let mut token_array: [u8; 4] = Default::default();
+                        token_array.copy_from_slice(&input[64..68]);
+                        let currency_id = CurrencyId::create_from_bytes(token_array);
+
+                        let mut amount_array: [u8; 16] = Default::default();
+                        amount_array.copy_from_slice(&input[68..]);
+                        let amount: u128 = u128::from_le_bytes(amount_array);
+
+                        let dispatch_result = <Currencies as MultiCurrency<AccountId>>::transfer(
+                            currency_id,
+                            &from_account_id,
+                            &to_account_id,
+                            amount,
+                        );
+
+                        debug::info!(
+                            "input: {:?}, from_account_id: {:?}, to_account_id: {:?}, token_id: {:?}, amount: {:?}, dispatch_result: {:?}",
+                            input,
+                            from_account_id,
+                            to_account_id,
+                            currency_id,
+                            amount,
+                            dispatch_result
+                        );
+
+                        let ret_val = dispatch_result.encode();
+                        env.write(&ret_val, false, None).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to fetch balance")
+                        })?;
+                    }
+                    Err(err) => {
+                        debug::info!("encountered error: {:?}", err);
+                    }
+                }
+            }
+
             _ => {
                 // error!("Called an unregistered `func_id`: {:}", func_id);
                 return Err(DispatchError::Other("Unimplemented func_id"));
