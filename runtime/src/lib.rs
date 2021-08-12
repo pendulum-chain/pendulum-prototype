@@ -329,6 +329,7 @@ parameter_types! {
     pub GatewayEscrowKeypair: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
     pub GatewayMockedStellarAsset: stellar::Asset = stellar::Asset::AssetTypeNative;
+    pub GatewayMockedWithdrawalDestination: &'static str = "GAKNDFRRWA3RPWNLTI3G4EBSD3RGNZZOY5WKWYMQ6CQTG3KIEKPYWAYC";
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
@@ -344,6 +345,7 @@ impl pallet_stellar_bridge::Config for Runtime {
     type GatewayEscrowKeypair = GatewayEscrowKeypair;
     type GatewayMockedDestination = GatewayMockedDestination;
     type GatewayMockedStellarAsset = GatewayMockedStellarAsset;
+    type GatewayMockedWithdrawalDestination = GatewayMockedWithdrawalDestination;
 }
 
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;

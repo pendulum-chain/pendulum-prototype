@@ -154,6 +154,7 @@ pub mod pallet {
         type GatewayEscrowKeypair: Get<SecretKey>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
         type GatewayMockedStellarAsset: Get<stellar::Asset>;
+        type GatewayMockedWithdrawalDestination: Get<&'static str>;
     }
 
     #[pallet::event]
@@ -322,9 +323,13 @@ pub mod pallet {
             let currency_id = withdrawal.currency;
             let pendulum_account_id = withdrawal.pendulum_address;
 
-            let asset = T::GatewayMockedStellarAsset::get();
+            let asset_code = T::CurrencyConversion::lookup(currency_id)?;
+            let mocked_stellar_issuer = "GAKNDFRRWA3RPWNLTI3G4EBSD3RGNZZOY5WKWYMQ6CQTG3KIEKPYWAYC";
+            let asset = stellar::Asset::from_asset_code(asset_code, mocked_stellar_issuer)?;
+
             let escrow_address = T::GatewayEscrowAccount::get();
-            let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
+            // let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
+            let stellar_address = stellar::PublicKey::from_encoding(T::GatewayMockedWithdrawalDestination::get())?;
 
             debug::info!(
                 "Execute withdrawal: ({:?}, {:?}, {:?})",
