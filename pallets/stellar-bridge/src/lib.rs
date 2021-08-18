@@ -13,6 +13,8 @@ use sp_core::crypto::KeyTypeId;
 use sp_runtime::traits::StaticLookup;
 use sp_runtime::RuntimeDebug;
 
+use sp_std::convert::From;
+
 use sp_std::{prelude::*, str};
 
 use orml_traits::{MultiCurrency, MultiReservableCurrency};
@@ -126,7 +128,7 @@ pub mod pallet {
         /// The mechanics of the ORML tokens  
         type Currency: MultiReservableCurrency<Self::AccountId>;
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
-        type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = [u8; 4]>;
+        type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = stellar::Asset>;
 
         type GatewayEscrowAccount: Get<&'static str>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
@@ -339,7 +341,9 @@ pub mod pallet {
 
                         if let stellar::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
                             // Source account will be our destination account
-                            if let stellar::MuxedAccount::KeyTypeEd25519(key) = env.tx.source_account {
+                            if let stellar::MuxedAccount::KeyTypeEd25519(key) =
+                                env.tx.source_account
+                            {
                                 let pubkey = stellar::PublicKey::from_binary(key).to_encoding();
                                 match str::from_utf8(&pubkey) {
                                     Ok(stellar_account_id) => debug::info!(
@@ -353,7 +357,8 @@ pub mod pallet {
                             }
 
                             for op in env.tx.operations.get_vec() {
-                                if let stellar::types::OperationBody::Payment(payment_op) = &op.body {
+                                if let stellar::types::OperationBody::Payment(payment_op) = &op.body
+                                {
                                     let dest_account =
                                         stellar::MuxedAccount::from(payment_op.destination.clone());
                                     debug::info!("Muxed account {:#?}", dest_account);
@@ -361,8 +366,9 @@ pub mod pallet {
                                     if let stellar::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
                                         payment_op.destination
                                     {
-                                        let pubkey = stellar::PublicKey::from_binary(dest_unwrapped)
-                                            .to_encoding();
+                                        let pubkey =
+                                            stellar::PublicKey::from_binary(dest_unwrapped)
+                                                .to_encoding();
                                         let pubkey_str = str::from_utf8(&pubkey).unwrap();
                                         if pubkey_str.eq(T::GatewayEscrowAccount::get()) {
                                             debug::info!(
@@ -372,17 +378,13 @@ pub mod pallet {
                                         }
                                     }
 
-                                    if let stellar::Asset::AssetTypeCreditAlphanum4(code) =
-                                        &payment_op.asset
-                                    {
-                                        let asset_code = str::from_utf8(&code.asset_code).ok();
-                                        debug::info!("✔️  Asset code to be minted {:?}", asset_code);
-                                        currency = Some(T::CurrencyConversion::unlookup(code.asset_code));
-                                        debug::info!("currency {:#?}", currency);
-                                        amount =
-                                            Some(T::BalanceConversion::unlookup(payment_op.amount));
-                                        debug::info!("Amount {:#?}", amount);
-                                    }
+                                    amount =
+                                        Some(T::BalanceConversion::unlookup(payment_op.amount));
+                                    currency = Some(T::CurrencyConversion::unlookup(payment_op.asset.clone()));
+
+                                    
+                                    debug::info!("currency {:?}", currency);
+                                    debug::info!("Amount {:?}", amount);
                                 }
                             }
                         }
