@@ -360,8 +360,8 @@ pub mod pallet {
                             {
                                 let pubkey = stellar::PublicKey::from_binary(key);
                                 match str::from_utf8(&pubkey.to_encoding()) {
-                                    Ok(stellar_account_id) => {
-                                        debug::info!("✔️  Source account is a valid Stellar account {:?}", stellar_account_id);
+                                    Ok(_) => {
+                                        debug::info!("✔️  Source account is a valid Stellar account {:?}", pubkey.as_binary());
                                         destination = Some(T::AddressConversion::unlookup(pubkey));
                                     },
                                     Err(_err) => debug::error!(
@@ -390,7 +390,7 @@ pub mod pallet {
                                             ));
                                         }
                                     }
-                                    debug::info!("Pendulum address for deposit {:?}", currency);
+                                    debug::info!("Pendulum address for deposit {:?}", destination);
                                     debug::info!("Currency {:?}", currency);
                                     debug::info!("Amount {:?}", amount);
                                 }
