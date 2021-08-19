@@ -127,11 +127,18 @@ pub mod pallet {
 
         /// The mechanics of the ORML tokens  
         type Currency: MultiReservableCurrency<Self::AccountId>;
+
+        /// Conversion between Stellar balance type and this pallet trait for balances
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
+
+        /// Conversion between Stellar asset type and this pallet trait for Currency
         type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = stellar::Asset>;
 
-        type GatewayEscrowAccount: Get<&'static str>;
-        type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
+        /// Conversion between Stellar Address type and this pallet trait for AccountId
+        type AddressConversion: StaticLookup<Source = Self::AccountId, Target = stellar::PublicKey>;
+
+        /// The escrow account
+        type GatewayEscrowSecretKey: Get<stellar::SecretKey>;
     }
 
     #[pallet::event]
@@ -236,8 +243,10 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
+            let escrow_account_public_key = T::GatewayEscrowSecretKey::get();
             let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
-                + T::GatewayEscrowAccount::get()
+                + str::from_utf8(escrow_account_public_key.get_encoded_public().as_slice())
+                    .unwrap()
                 + "/transactions?order=desc&limit=1";
 
             debug::info!("Sending request to: {}", request_url.as_str());
@@ -309,6 +318,11 @@ pub mod pallet {
             }
         }
 
+        fn is_escrow(public_key_bin: [u8; 32]) -> bool {
+            let public_key = stellar::PublicKey::from_binary(public_key_bin).to_encoding();
+            return public_key.eq(&T::GatewayEscrowSecretKey::get().get_encoded_public());
+        }
+
         fn handle_new_transaction(tx: &Transaction) {
             const UP_TO_DATE: () = ();
 
@@ -332,7 +346,7 @@ pub mod pallet {
                         debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
                         let mut amount: Option<BalanceOf<T>> = None;
-                        let destination = T::GatewayMockedDestination::get();
+                        let mut destination: Option<T::AccountId> = None;
                         let mut currency = None;
 
                         // Decode transaction to Base64 and then to Stellar XDR to get transaction details
@@ -344,12 +358,12 @@ pub mod pallet {
                             if let stellar::MuxedAccount::KeyTypeEd25519(key) =
                                 env.tx.source_account
                             {
-                                let pubkey = stellar::PublicKey::from_binary(key).to_encoding();
-                                match str::from_utf8(&pubkey) {
-                                    Ok(stellar_account_id) => debug::info!(
-                                        "✔️  Source account is a valid Stellar account {:?}",
-                                        stellar_account_id
-                                    ),
+                                let pubkey = stellar::PublicKey::from_binary(key);
+                                match str::from_utf8(&pubkey.to_encoding()) {
+                                    Ok(stellar_account_id) => {
+                                        debug::info!("✔️  Source account is a valid Stellar account {:?}", stellar_account_id);
+                                        destination = Some(T::AddressConversion::unlookup(pubkey));
+                                    },
                                     Err(_err) => debug::error!(
                                         "❌  Source account is a not a valid Stellar account."
                                     ),
@@ -363,37 +377,31 @@ pub mod pallet {
                                         stellar::MuxedAccount::from(payment_op.destination.clone());
                                     debug::info!("Muxed account {:#?}", dest_account);
 
-                                    if let stellar::MuxedAccount::KeyTypeEd25519(dest_unwrapped) =
-                                        payment_op.destination
+                                    if let stellar::MuxedAccount::KeyTypeEd25519(
+                                        payment_dest_public_key,
+                                    ) = payment_op.destination
                                     {
-                                        let pubkey =
-                                            stellar::PublicKey::from_binary(dest_unwrapped)
-                                                .to_encoding();
-                                        let pubkey_str = str::from_utf8(&pubkey).unwrap();
-                                        if pubkey_str.eq(T::GatewayEscrowAccount::get()) {
-                                            debug::info!(
-                                                "✔️  Destination account is the escrow account {:?}",
-                                                pubkey_str
-                                            );
+                                        if Self::is_escrow(payment_dest_public_key) {
+                                            amount = Some(T::BalanceConversion::unlookup(
+                                                payment_op.amount,
+                                            ));
+                                            currency = Some(T::CurrencyConversion::unlookup(
+                                                payment_op.asset.clone(),
+                                            ));
                                         }
                                     }
-
-                                    amount =
-                                        Some(T::BalanceConversion::unlookup(payment_op.amount));
-                                    currency = Some(T::CurrencyConversion::unlookup(payment_op.asset.clone()));
-
-                                    
-                                    debug::info!("currency {:?}", currency);
+                                    debug::info!("Pendulum address for deposit {:?}", currency);
+                                    debug::info!("Currency {:?}", currency);
                                     debug::info!("Amount {:?}", amount);
                                 }
                             }
                         }
 
-                        if currency.is_some() && amount.is_some() {
+                        if currency.is_some() && amount.is_some() && destination.is_some() {
                             match Self::offchain_unsigned_tx_signed_payload(
                                 currency.unwrap(),
                                 amount.unwrap(),
-                                destination,
+                                destination.unwrap(),
                             ) {
                                 Err(_) => debug::warn!("Sending the tx failed."),
                                 Ok(_) => (),
