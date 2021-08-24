@@ -318,9 +318,8 @@ pub mod pallet {
             }
         }
 
-        fn is_escrow(public_key_bin: [u8; 32]) -> bool {
-            let public_key = stellar::PublicKey::from_binary(public_key_bin).to_encoding();
-            return public_key.eq(&T::GatewayEscrowSecretKey::get().get_encoded_public());
+        fn is_escrow(public_key: [u8; 32]) -> bool {
+            return public_key == *T::GatewayEscrowSecretKey::get().get_public().as_binary();
         }
 
         fn handle_new_transaction(tx: &Transaction) {
