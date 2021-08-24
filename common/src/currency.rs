@@ -60,12 +60,12 @@ impl From<stellar::Asset> for CurrencyId {
             stellar::Asset::AssetTypeNative => CurrencyId::StellarNative,
             stellar::Asset::AssetTypeCreditAlphanum4(asset_alpha_num4) => CurrencyId::AlphaNum4 {
                 code: asset_alpha_num4.asset_code,
-                issuer: asset_alpha_num4.issuer.as_binary().clone(),
+                issuer: asset_alpha_num4.issuer.into_binary(),
             },
             stellar::Asset::AssetTypeCreditAlphanum12(asset_alpha_num12) => {
                 CurrencyId::AlphaNum12 {
                     code: asset_alpha_num12.asset_code,
-                    issuer: asset_alpha_num12.issuer.as_binary().clone(),
+                    issuer: asset_alpha_num12.issuer.into_binary(),
                 }
             }
         }
