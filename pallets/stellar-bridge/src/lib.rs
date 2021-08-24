@@ -243,9 +243,9 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         fn fetch_from_remote() -> Result<Vec<u8>, Error<T>> {
-            let escrow_account_public_key = T::GatewayEscrowSecretKey::get();
+            let escrow_account_secret_key = T::GatewayEscrowSecretKey::get();
             let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
-                + str::from_utf8(escrow_account_public_key.get_encoded_public().as_slice())
+                + str::from_utf8(escrow_account_secret_key.get_encoded_public().as_slice())
                     .unwrap()
                 + "/transactions?order=desc&limit=1";
 
