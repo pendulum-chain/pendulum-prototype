@@ -391,12 +391,14 @@ where
 pub struct BalanceChainExtension;
 use sp_runtime::DispatchError;
 
+use core::convert::TryFrom;
 // FIXME: Removing this will result in `Currencies::total_balance` not being found
 // Does not really make sense but this import should stay for now
 use orml_traits::MultiCurrency;
+use sp_std::str;
 
-type Input = [u8; 36]; // First 32 bit are AccountId & last 4 bit are CurrencyId
-type Input2 = [u8; 68 + 16];
+type FetchBalanceInput = [u8; 32 + 32 + 12]; // 1-> owner:AccountId, 2-> asset_issuer: [u8;32], 3-> asset_code: [u8;12]
+type TransferBalanceInput = [u8; 32 + 32 + 32 + 12 + 16]; // 1-> from: AccoundId, 2-> to: AccountId, 3-> asset_issuer: [u8;32], 4-> asset_code: [u8;12], 5-> balance: u128
 
 impl ChainExtension<Runtime> for BalanceChainExtension {
     fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
@@ -406,20 +408,29 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
         debug::info!("Call chain extension: {:?}", func_id,);
 
         match func_id {
+            // fetch_balance()
             1101 => {
                 let mut env = env.buf_in_buf_out();
-                let input = env.read_as::<Input>();
+                let input = env.read_as::<FetchBalanceInput>();
                 match input {
                     Ok(input) => {
                         let mut account_array: [u8; 32] = Default::default();
                         account_array.copy_from_slice(&input[0..32]);
                         let account_id = AccountId::from(account_array);
 
-                        let mut token_array: [u8; 4] = Default::default();
-                        token_array.copy_from_slice(&input[32..]);
-                        let currency_id = CurrencyId::create_from_bytes(token_array);
+                        let mut issuer_array: [u8; 32] = Default::default();
+                        issuer_array.copy_from_slice(&input[32..64]);
 
-                        let balance = Currencies::total_balance(currency_id, &account_id);
+                        let mut asset_code_array: [u8; 12] = Default::default();
+                        asset_code_array.copy_from_slice(&input[64..]);
+                        let asset_str: &str = str::from_utf8(&asset_code_array).unwrap();
+                        let currency_id: CurrencyId =
+                            CurrencyId::try_from((asset_str, issuer_array)).unwrap();
+
+                        let balance = <Currencies as MultiCurrency<AccountId>>::total_balance(
+                            currency_id,
+                            &account_id,
+                        );
 
                         debug::info!(
                             "input: {:?}, account_id: {:?}, token_id: {:?}, balance: {:?}",
@@ -439,14 +450,12 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
                     }
                 }
             }
-
+            // transfer_balance()
             1102 => {
                 let mut env = env.buf_in_buf_out();
-                let input = env.read_as::<Input2>();
+                let input = env.read_as::<TransferBalanceInput>();
                 match input {
                     Ok(input) => {
-                        debug::info!("input: {:?}", input);
-
                         let mut from_account_array: [u8; 32] = Default::default();
                         from_account_array.copy_from_slice(&input[0..32]);
                         let from_account_id = AccountId::from(from_account_array);
@@ -455,12 +464,17 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
                         to_account_array.copy_from_slice(&input[32..64]);
                         let to_account_id = AccountId::from(to_account_array);
 
-                        let mut token_array: [u8; 4] = Default::default();
-                        token_array.copy_from_slice(&input[64..68]);
-                        let currency_id = CurrencyId::create_from_bytes(token_array);
+                        let mut issuer_array: [u8; 32] = Default::default();
+                        issuer_array.copy_from_slice(&input[64..96]);
+
+                        let mut asset_code_array: [u8; 12] = Default::default();
+                        asset_code_array.copy_from_slice(&input[96..108]);
+                        let asset_str: &str = str::from_utf8(&asset_code_array).unwrap();
+                        let currency_id: CurrencyId =
+                            CurrencyId::try_from((asset_str, issuer_array)).unwrap();
 
                         let mut amount_array: [u8; 16] = Default::default();
-                        amount_array.copy_from_slice(&input[68..]);
+                        amount_array.copy_from_slice(&input[108..]);
                         let amount: u128 = u128::from_le_bytes(amount_array);
 
                         let dispatch_result = <Currencies as MultiCurrency<AccountId>>::transfer(
