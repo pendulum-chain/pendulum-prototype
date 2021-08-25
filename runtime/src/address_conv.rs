@@ -1,7 +1,7 @@
 use frame_support::error::LookupError;
 use sp_core::ed25519;
-use sp_runtime::{AccountId32, MultiSigner};
 use sp_runtime::traits::{IdentifyAccount, StaticLookup};
+use sp_runtime::{AccountId32, MultiSigner};
 use substrate_stellar_sdk as stellar;
 
 pub struct AddressConversion;
@@ -23,5 +23,5 @@ impl StaticLookup for AddressConversion {
 /// Error type for key decoding errors
 #[derive(Debug)]
 pub enum AddressConversionError {
-//     UnexpectedKeyType
+    //     UnexpectedKeyType
 }
