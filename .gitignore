@@ -14,3 +14,6 @@
 
 # direnv cache
 .direnv
+
+#for Intellij based IDE
+.idea/

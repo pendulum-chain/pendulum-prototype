@@ -288,6 +288,20 @@ pub mod pallet {
             Self::deposit_event(Event::Withdrawal(currency_id, pendulum_account_id, amount));
             Ok(().into())
         }
+
+        #[pallet::weight(100000)]
+        pub fn pendulum_withdraw(
+            origin: OriginFor<T>,
+            currency_id: CurrencyIdOf<T>,
+            amount: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+
+            let pendulum_account_id = ensure_signed(origin)?;
+            T::Currency::withdraw(currency_id, &pendulum_account_id, amount)
+                .map_err(|_| <Error<T>>::BalanceChangeError)?;
+            //Self::deposit_event(Event::Withdrawal(currency_id, origin, amount));
+            Ok(().into())
+        }
     }
 
     impl<T: Config> Pallet<T> {
