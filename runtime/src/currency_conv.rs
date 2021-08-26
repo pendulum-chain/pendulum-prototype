@@ -19,7 +19,7 @@ impl StaticLookup for CurrencyConversion {
     ) -> Result<<Self as StaticLookup>::Target, LookupError> {
         let asset_conversion_result: Result<Asset, &str> = currency_id.try_into();
         asset_conversion_result.map_err(to_look_up_error)
-    } 
+    }
 
     fn unlookup(stellar_asset: <Self as StaticLookup>::Target) -> <Self as StaticLookup>::Source {
         CurrencyId::from(stellar_asset)
