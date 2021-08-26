@@ -34,6 +34,8 @@ pub use pallet::*;
 
 pub use pendulum_common::currency::CurrencyId;
 
+use frame_system::offchain::SendSignedTransaction;
+
 type BalanceOf<T> =
     <<T as Config>::Currency as MultiCurrency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -53,6 +55,8 @@ pub const FETCH_TIMEOUT_PERIOD: Duration = Duration::from_millis(3000);
 pub const SUBMISSION_TIMEOUT_PERIOD: Duration = Duration::from_millis(10000);
 
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
+
+use core::{convert::TryInto};
 
 /// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrapper.
 /// We can utilize the supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
@@ -215,10 +219,11 @@ pub mod pallet {
             // * Should have a mutex to prevent multiple withdrawals if withdrawal
             //   takes longer than one Pendulum block (seq. no. clashes!)
 
-            let submission_result = (|| {
+           /* let submission_result = (|| {
                 Self::pop_queued_withdrawal()
                     .map(|maybe_withdrawal| match maybe_withdrawal {
-                        Some(withdrawal) => Self::execute_withdrawal(withdrawal),
+                        Some(withdrawal) =>
+                            Self::execute_withdrawal(withdrawal),
                         None => Ok(()),
                     })
                     .flatten()
@@ -232,6 +237,17 @@ pub mod pallet {
                     );
                 })
                 .ok();
+            */
+           let with = Self::get_pending_withdrawal();
+
+            if with.is_some(){
+                debug::info!(
+                        "There is some withdraw  🏀🏀🏀 {:?}",
+                        with.clone().unwrap()
+                    );
+              // Self::execute_withdrawal(with.unwrap());
+                Self::offchain_signed_tx(_n);
+            }
         }
     }
 
@@ -333,6 +349,7 @@ pub mod pallet {
         fn execute_withdrawal(
             withdrawal: Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>,
         ) -> Result<(), Error<T>> {
+
             let amount = withdrawal.amount;
             let currency_id = withdrawal.currency;
             let pendulum_account_id = withdrawal.pendulum_address;
@@ -345,17 +362,8 @@ pub mod pallet {
             // let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
             let stellar_address = stellar::PublicKey::from_encoding(T::GatewayMockedWithdrawalDestination::get())?;
 
-            debug::info!(
-                "Execute withdrawal: ({:?}, {:?}, {:?})",
-                currency_id,
-                amount,
-                str::from_utf8(stellar_address.to_encoding().as_slice())?,
-            );
-
-            let imbalance = T::Currency::withdraw(currency_id, &pendulum_account_id, amount)
+           T::Currency::withdraw(currency_id, &pendulum_account_id, amount)
                 .map_err(|_| <Error<T>>::BalanceChangeError)?;
-
-            drop(imbalance);
 
             let seq_no = Self::fetch_latest_seq_no(escrow_address).map(|seq_no| seq_no + 1)?;
             let transaction =
@@ -372,8 +380,19 @@ pub mod pallet {
             result
         }
 
+        fn get_pending_withdrawal() -> Option<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>> {
+            let pending_withdrawal_storage =
+                sp_runtime::offchain::storage::StorageValueRef::persistent(
+                    b"stellar-bridge::pending-withdrawal",
+                );
+
+             pending_withdrawal_storage
+                .get::<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>().unwrap()
+
+        }
+
         fn pop_queued_withdrawal(
-        ) -> Result<Option<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>, Error<T>>
+        ) -> Option<Withdrawal<BalanceOf<T>, CurrencyIdOf<T>, T::AccountId>>
         {
             // TODO: Should use VecDeque or at least Vec instead, but not trivial to do using offchain index
             let mut pending_withdrawal_storage =
@@ -389,9 +408,9 @@ pub mod pallet {
                         "Found queued withdrawal. Clearing it from storage and returning it…",
                     );
                     pending_withdrawal_storage.clear();
-                    Ok(Some(withdrawal))
+                    Some(withdrawal)
                 }
-                _ => Ok(None),
+                _ => None,
             }
         }
 
@@ -670,6 +689,61 @@ pub mod pallet {
                 }
             }
         }
+
+        fn offchain_signed_tx(block_number: T::BlockNumber) -> Result<(), Error<T>> {
+            // We retrieve a signer and check if it is valid.
+            //   Since this pallet only has one key in the keystore. We use `any_account()1 to
+            //   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
+            //   ref: https://substrate.dev/rustdocs/v3.0.0/frame_system/offchain/struct.Signer.html
+            let signer = Signer::<T, T::AuthorityId>::any_account();
+
+            // Translating the current block number to number and submit it on-chain
+            let number: u64 = block_number.try_into().unwrap_or(0);
+
+            // `result` is in the type of `Option<(Account<T>, Result<(), ()>)>`. It is:
+            //   - `None`: no account is available for sending transaction
+            //   - `Some((account, Ok(())))`: transaction is successfully sent
+            //   - `Some((account, Err(())))`: error occured when sending the transaction
+
+            let withdrawal = Self::get_pending_withdrawal().unwrap();
+
+            let amount = withdrawal.amount;
+            let currency_id = withdrawal.currency;
+            let pendulum_account_id = withdrawal.pendulum_address;
+
+            let result = signer.send_signed_transaction(|_acct|
+
+            /* pub fn pendulum_withdraw(
+                origin: OriginFor<T>,
+                currency_id: CurrencyIdOf<T>,
+                amount: BalanceOf<T>,
+            )*/
+            // This is the on-chain function
+                Call::pendulum_withdraw(currency_id, amount ));
+
+            // Display error if the signed tx fails.
+            if let Some((acc, res)) = result {
+                if res.is_err() {
+                    debug::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
+                    return Err(<Error<T>>::OffchainSignedTxError);
+                }
+                // Transaction is sent successfully
+
+                let mut pending_withdrawal_storage =
+                    sp_runtime::offchain::storage::StorageValueRef::persistent(
+                        b"stellar-bridge::pending-withdrawal",
+                    );
+
+                pending_withdrawal_storage.clear();
+
+                return Ok(());
+            } else {
+                // The case result == `None`: no account is available for sending
+                debug::error!("No local account available");
+                return Err(<Error<T>>::NoLocalAcctForSigning);
+            }
+        }
+
     }
 
     impl<T: Config> frame_support::unsigned::ValidateUnsigned for Pallet<T> {
