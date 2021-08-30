@@ -46,8 +46,8 @@ To be able to use the Polkadot JS explorer properly, some types need to be added
       "signed_by": "AccountId"
     }
   }
-}```
-
+}
+```
 
 ---
 

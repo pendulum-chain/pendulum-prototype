@@ -63,6 +63,7 @@ use stellar::SecretKey;
 use substrate_stellar_sdk as stellar;
 
 pub use pendulum_common::currency::CurrencyId;
+pub use substrate_stellar_sdk::SecretKey;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -330,6 +331,7 @@ parameter_types! {
     pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
     pub GatewayMockedStellarAsset: stellar::Asset = stellar::Asset::AssetTypeNative;
     pub GatewayMockedWithdrawalDestination: &'static str = "GAKNDFRRWA3RPWNLTI3G4EBSD3RGNZZOY5WKWYMQ6CQTG3KIEKPYWAYC";
+    pub GatewayEscrowSecretKey: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
@@ -337,6 +339,7 @@ impl pallet_stellar_bridge::Config for Runtime {
     type AddressConversion = StellarAddressConversion;
     type BalanceConversion = StellarBalanceConversion;
     type CurrencyConversion = StellarCurrencyConversion;
+    type AddressConversion = StellarAddressConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
@@ -346,6 +349,7 @@ impl pallet_stellar_bridge::Config for Runtime {
     type GatewayMockedDestination = GatewayMockedDestination;
     type GatewayMockedStellarAsset = GatewayMockedStellarAsset;
     type GatewayMockedWithdrawalDestination = GatewayMockedWithdrawalDestination;
+    type GatewayEscrowSecretKey = GatewayEscrowSecretKey;
 }
 
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
