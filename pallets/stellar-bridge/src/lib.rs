@@ -51,31 +51,31 @@ pub const FETCH_TIMEOUT_PERIOD: u64 = 3000; // in milli-seconds
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
 /// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrapper.
-/// We can utilize the supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
+/// We can utilize the supported crypto kinds (`ed25519`, `ed25519` and `ecdsa`) and augment
 /// them with the pallet-specific identifier.
 pub mod crypto {
     use super::KEY_TYPE;
-    use sp_core::sr25519::Signature as Sr25519Signature;
-    use sp_runtime::app_crypto::{app_crypto, sr25519};
+    use sp_core::ed25519::Signature as Ed25519Signature;
+    use sp_runtime::app_crypto::{app_crypto, ed25519};
     use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
 
-    app_crypto!(sr25519, KEY_TYPE);
+    app_crypto!(ed25519, KEY_TYPE);
 
     pub struct TestAuthId;
     // implemented for ocw-runtime
     impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
         type RuntimeAppPublic = Public;
-        type GenericSignature = sp_core::sr25519::Signature;
-        type GenericPublic = sp_core::sr25519::Public;
+        type GenericSignature = sp_core::ed25519::Signature;
+        type GenericPublic = sp_core::ed25519::Public;
     }
 
     // implemented for mock runtime in test
-    impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
+    impl frame_system::offchain::AppCrypto<<Ed25519Signature as Verify>::Signer, Ed25519Signature>
         for TestAuthId
     {
         type RuntimeAppPublic = Public;
-        type GenericSignature = sp_core::sr25519::Signature;
-        type GenericPublic = sp_core::sr25519::Public;
+        type GenericSignature = sp_core::ed25519::Signature;
+        type GenericPublic = sp_core::ed25519::Public;
     }
 }
 
