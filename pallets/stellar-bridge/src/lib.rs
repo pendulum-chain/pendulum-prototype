@@ -292,6 +292,9 @@ pub mod pallet {
                 stellar_address
             );
 
+            T::Currency::withdraw(currency_id.clone(), &pendulum_account_id, amount)
+                .map_err(|_| <Error<T>>::BalanceChangeError)?;
+
             Self::queue_withdrawal(pendulum_account_id.clone(), currency_id, amount);
 
             Self::deposit_event(Event::Withdrawal(currency_id, pendulum_account_id, amount));
@@ -343,11 +346,6 @@ pub mod pallet {
                 amount,
                 str::from_utf8(stellar_address.to_encoding().as_slice())?,
             );
-
-            let imbalance = T::Currency::withdraw(currency_id, &pendulum_account_id, amount)
-                .map_err(|_| <Error<T>>::BalanceChangeError)?;
-
-            drop(imbalance);
 
             let seq_no = Self::fetch_latest_seq_no(escrow_address).map(|seq_no| seq_no + 1)?;
             let transaction =
