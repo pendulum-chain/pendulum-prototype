@@ -2,4 +2,3 @@
 pub mod currency;
 
 pub use currency::*;
-pub use string::*;

@@ -16,12 +16,12 @@ use frame_system::pallet_prelude::*;
 use frame_system::offchain::{SignedPayload, SigningTypes};
 use sp_core::crypto::KeyTypeId;
 use sp_runtime::offchain::Duration;
-use sp_runtime::traits::StaticLookup;
+use sp_runtime::traits::{Convert, StaticLookup};
 use sp_runtime::{MultiSignature, RuntimeDebug};
 use sp_std::convert::From;
 use sp_std::{prelude::*, str};
 
-use orml_traits::{MultiCurrency, MultiReservableCurrency};
+use orml_traits::MultiCurrency;
 
 use serde::Deserialize;
 
@@ -130,10 +130,8 @@ pub mod pallet {
     use sp_runtime::offchain::HttpError;
     use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
-    use stellar::{SecretKey, StellarSdkError, XdrCodec};
-    use sp_runtime::offchain::storage::StorageValueRef;
-    use sp_runtime::offchain::Duration;
     use stellar::types::{OperationBody, PaymentOp};
+    use stellar::{SecretKey, StellarSdkError, XdrCodec};
 
     #[pallet::config]
     pub trait Config:
@@ -149,20 +147,17 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// The mechanics of the ORML tokens
-        type Currency: MultiReservableCurrency<Self::AccountId>;
+        type Currency: MultiCurrency<Self::AccountId>;
         type AddressConversion: StaticLookup<Source = Self::AccountId, Target = stellar::PublicKey>;
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
+        type StringCurrencyConversion: Convert<(Vec<u8>, Vec<u8>), Result<CurrencyIdOf<Self>, ()>>;
 
         type GatewayEscrowAccount: Get<&'static str>;
         type GatewayEscrowKeypair: Get<SecretKey>;
         type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
         type GatewayMockedStellarAsset: Get<stellar::Asset>;
-        type GatewayMockedWithdrawalDestination: Get<&'static str>;
         /// Conversion between Stellar asset type and this pallet trait for Currency
         type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = stellar::Asset>;
-
-        /// Conversion between Stellar Address type and this pallet trait for AccountId
-        type AddressConversion: StaticLookup<Source = Self::AccountId, Target = stellar::PublicKey>;
 
         /// The escrow account
         type GatewayEscrowSecretKey: Get<stellar::SecretKey>;
@@ -281,9 +276,12 @@ pub mod pallet {
         #[pallet::weight(100000)]
         pub fn withdraw_to_stellar(
             origin: OriginFor<T>,
-            currency_id: CurrencyIdOf<T>,
+            asset_code: Vec<u8>,
+            asset_issuer: Vec<u8>,
             amount: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let currency_id = T::StringCurrencyConversion::convert((asset_code, asset_issuer))
+                .map_err(|_| LookupError)?;
             let pendulum_account_id = ensure_signed(origin)?;
             let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
 
@@ -334,13 +332,10 @@ pub mod pallet {
             let currency_id = withdrawal.currency;
             let pendulum_account_id = withdrawal.pendulum_address;
 
-            let asset_code = T::CurrencyConversion::lookup(currency_id)?;
-            let mocked_stellar_issuer = "GAKNDFRRWA3RPWNLTI3G4EBSD3RGNZZOY5WKWYMQ6CQTG3KIEKPYWAYC";
-            let asset = stellar::Asset::from_asset_code(asset_code, mocked_stellar_issuer)?;
+            let asset = T::CurrencyConversion::lookup(currency_id)?;
 
             let escrow_address = T::GatewayEscrowAccount::get();
-            // let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
-            let stellar_address = stellar::PublicKey::from_encoding(T::GatewayMockedWithdrawalDestination::get())?;
+            let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
 
             debug::info!(
                 "Execute withdrawal: ({:?}, {:?}, {:?})",
