@@ -7,7 +7,7 @@ pub use sc_executor::NativeExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
-use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+use sp_consensus_aura::ed25519::AuthorityPair as AuraPair;
 use sp_inherents::InherentDataProviders;
 use std::sync::Arc;
 use std::time::Duration;
@@ -160,7 +160,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         // Initialize seed for signing transaction using off-chain workers. This is a convenience
         // so learners can see the transactions submitted simply running the node.
         // Typically these keys should be inserted with RPC calls to `author_insertKey`.
-        sp_keystore::SyncCryptoStore::sr25519_generate_new(
+        sp_keystore::SyncCryptoStore::ed25519_generate_new(
             &*keystore,
             node_template_runtime::pallet_stellar_bridge::KEY_TYPE,
             Some("//Alice"),

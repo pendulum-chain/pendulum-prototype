@@ -11,7 +11,7 @@ use codec::Encode;
 use pallet_grandpa::fg_primitives;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use sp_api::impl_runtime_apis;
-use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_consensus_aura::ed25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::traits::{
     AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify,
@@ -31,11 +31,11 @@ use sp_version::RuntimeVersion;
 use orml_currencies::BasicCurrencyAdapter;
 use orml_traits::parameter_type_with_key;
 
-use hex_literal;
-
+mod address_conv;
 mod balance_conv;
 mod currency_conv;
 
+use address_conv::AddressConversion as StellarAddressConversion;
 use balance_conv::BalanceConversion as StellarBalanceConversion;
 use currency_conv::CurrencyConversion as StellarCurrencyConversion;
 
@@ -63,6 +63,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
 
 pub use pendulum_common::currency::CurrencyId;
+pub use substrate_stellar_sdk::SecretKey;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -325,20 +326,19 @@ parameter_types! {
     pub const StringLimit: u32 = 50;
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
-    pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
-    pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
+    pub GatewayEscrowSecretKey: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
 impl pallet_stellar_bridge::Config for Runtime {
     type BalanceConversion = StellarBalanceConversion;
     type CurrencyConversion = StellarCurrencyConversion;
+    type AddressConversion = StellarAddressConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
     type Currency = Currencies;
-    type GatewayEscrowAccount = GatewayEscrowAccount;
-    type GatewayMockedDestination = GatewayMockedDestination;
+    type GatewayEscrowSecretKey = GatewayEscrowSecretKey;
 }
 
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
