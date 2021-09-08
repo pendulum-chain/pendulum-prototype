@@ -31,8 +31,6 @@ use sp_version::RuntimeVersion;
 use orml_currencies::BasicCurrencyAdapter;
 use orml_traits::parameter_type_with_key;
 
-use hex_literal;
-
 mod address_conv;
 mod balance_conv;
 mod currency_conv;
@@ -331,11 +329,7 @@ parameter_types! {
     pub const StringLimit: u32 = 50;
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
-    pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
     pub GatewayEscrowKeypair: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
-    pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
-    pub GatewayMockedStellarAsset: stellar::Asset = stellar::Asset::AssetTypeNative;
-    pub GatewayEscrowSecretKey: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
@@ -348,11 +342,7 @@ impl pallet_stellar_bridge::Config for Runtime {
     type Call = Call;
     type Event = Event;
     type Currency = Currencies;
-    type GatewayEscrowAccount = GatewayEscrowAccount;
     type GatewayEscrowKeypair = GatewayEscrowKeypair;
-    type GatewayMockedDestination = GatewayMockedDestination;
-    type GatewayMockedStellarAsset = GatewayMockedStellarAsset;
-    type GatewayEscrowSecretKey = GatewayEscrowSecretKey;
 }
 
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
