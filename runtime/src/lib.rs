@@ -31,6 +31,8 @@ use sp_version::RuntimeVersion;
 use orml_currencies::BasicCurrencyAdapter;
 use orml_traits::parameter_type_with_key;
 
+use hex_literal;
+
 mod address_conv;
 mod balance_conv;
 mod currency_conv;
@@ -38,6 +40,7 @@ mod currency_conv;
 use address_conv::AddressConversion as StellarAddressConversion;
 use balance_conv::BalanceConversion as StellarBalanceConversion;
 use currency_conv::CurrencyConversion as StellarCurrencyConversion;
+use currency_conv::StringCurrencyConversion as StellarStringCurrencyConversion;
 
 // A few exports that help ease life for downstream crates.
 pub use pallet_stellar_bridge;
@@ -62,8 +65,10 @@ use pallet_contracts::weights::WeightInfo;
 use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
 
+use stellar::SecretKey;
+use substrate_stellar_sdk as stellar;
+
 pub use pendulum_common::currency::CurrencyId;
-pub use substrate_stellar_sdk::SecretKey;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -326,18 +331,27 @@ parameter_types! {
     pub const StringLimit: u32 = 50;
     pub const MetadataDepositBase: Balance = 10 * XLM;
     pub const MetadataDepositPerByte: Balance = 1 * XLM;
+    pub const GatewayEscrowAccount: &'static str = "GALXBW3TNM7QGHTSQENJA2YJGGHLO3TP7Y7RLKWPZIY4CUHNJ3TDMFON";
+    pub GatewayEscrowKeypair: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
+    pub GatewayMockedDestination: AccountId = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d").into();
+    pub GatewayMockedStellarAsset: stellar::Asset = stellar::Asset::AssetTypeNative;
     pub GatewayEscrowSecretKey: SecretKey = SecretKey::from_encoding("SACLCZW75A7QASXCEPSD4ZZII7THVHDUGCOKUBOINZLSVA3VKTGLOV33").unwrap();
 }
 
 // ---------------------- Stellar Bridge Pallet Configurations ----------------------
 impl pallet_stellar_bridge::Config for Runtime {
+    type AddressConversion = StellarAddressConversion;
     type BalanceConversion = StellarBalanceConversion;
     type CurrencyConversion = StellarCurrencyConversion;
-    type AddressConversion = StellarAddressConversion;
+    type StringCurrencyConversion = StellarStringCurrencyConversion;
     type AuthorityId = pallet_stellar_bridge::crypto::TestAuthId;
     type Call = Call;
     type Event = Event;
     type Currency = Currencies;
+    type GatewayEscrowAccount = GatewayEscrowAccount;
+    type GatewayEscrowKeypair = GatewayEscrowKeypair;
+    type GatewayMockedDestination = GatewayMockedDestination;
+    type GatewayMockedStellarAsset = GatewayMockedStellarAsset;
     type GatewayEscrowSecretKey = GatewayEscrowSecretKey;
 }
 
