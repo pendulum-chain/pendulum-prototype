@@ -406,8 +406,6 @@ pub struct BalanceChainExtension;
 use sp_runtime::DispatchError;
 
 use core::convert::TryFrom;
-// FIXME: Removing this will result in `Currencies::total_balance` not being found
-// Does not really make sense but this import should stay for now
 use orml_traits::MultiCurrency;
 use sp_std::str;
 
@@ -438,20 +436,13 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
                         let mut asset_code_array: [u8; 12] = Default::default();
                         asset_code_array.copy_from_slice(&input[64..]);
                         let asset_str: &str = str::from_utf8(&asset_code_array).unwrap();
+                        let asset_str = asset_str.trim_matches(char::from(0));
                         let currency_id: CurrencyId =
                             CurrencyId::try_from((asset_str, issuer_array)).unwrap();
 
-                        let balance = <Currencies as MultiCurrency<AccountId>>::total_balance(
+                        let balance = <Tokens as MultiCurrency<AccountId>>::total_balance(
                             currency_id,
                             &account_id,
-                        );
-
-                        debug::info!(
-                            "input: {:?}, account_id: {:?}, token_id: {:?}, balance: {:?}",
-                            input,
-                            account_id,
-                            currency_id,
-                            balance
                         );
 
                         let ret_val = balance.encode();
@@ -484,6 +475,7 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
                         let mut asset_code_array: [u8; 12] = Default::default();
                         asset_code_array.copy_from_slice(&input[96..108]);
                         let asset_str: &str = str::from_utf8(&asset_code_array).unwrap();
+                        let asset_str = asset_str.trim_matches(char::from(0));
                         let currency_id: CurrencyId =
                             CurrencyId::try_from((asset_str, issuer_array)).unwrap();
 
@@ -496,16 +488,6 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
                             &from_account_id,
                             &to_account_id,
                             amount,
-                        );
-
-                        debug::info!(
-                            "input: {:?}, from_account_id: {:?}, to_account_id: {:?}, token_id: {:?}, amount: {:?}, dispatch_result: {:?}",
-                            input,
-                            from_account_id,
-                            to_account_id,
-                            currency_id,
-                            amount,
-                            dispatch_result
                         );
 
                         let ret_val = dispatch_result.encode();
