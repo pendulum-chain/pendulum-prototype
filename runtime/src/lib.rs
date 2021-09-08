@@ -435,10 +435,12 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
 
                         let mut asset_code_array: [u8; 12] = Default::default();
                         asset_code_array.copy_from_slice(&input[64..]);
-                        let asset_str: &str = str::from_utf8(&asset_code_array).unwrap();
+                        let asset_str: &str = str::from_utf8(&asset_code_array).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to decode asset")
+                        })?;
                         let asset_str = asset_str.trim_matches(char::from(0));
                         let currency_id: CurrencyId =
-                            CurrencyId::try_from((asset_str, issuer_array)).unwrap();
+                            CurrencyId::try_from((asset_str, issuer_array))?;
 
                         let balance = <Tokens as MultiCurrency<AccountId>>::total_balance(
                             currency_id,
@@ -474,10 +476,12 @@ impl ChainExtension<Runtime> for BalanceChainExtension {
 
                         let mut asset_code_array: [u8; 12] = Default::default();
                         asset_code_array.copy_from_slice(&input[96..108]);
-                        let asset_str: &str = str::from_utf8(&asset_code_array).unwrap();
+                        let asset_str: &str = str::from_utf8(&asset_code_array).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to decode asset")
+                        })?;
                         let asset_str = asset_str.trim_matches(char::from(0));
                         let currency_id: CurrencyId =
-                            CurrencyId::try_from((asset_str, issuer_array)).unwrap();
+                            CurrencyId::try_from((asset_str, issuer_array))?;
 
                         let mut amount_array: [u8; 16] = Default::default();
                         amount_array.copy_from_slice(&input[108..]);
