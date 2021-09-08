@@ -1,6 +1,6 @@
 use node_template_runtime::{
-    AccountId, AuraConfig, BalancesConfig, ContractsConfig, CurrencyId, GenesisConfig, GrandpaConfig, Signature,
-    SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
+    AccountId, AuraConfig, BalancesConfig, ContractsConfig, CurrencyId, GenesisConfig,
+    GrandpaConfig, Signature, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::ed25519::AuthorityId as AuraId;

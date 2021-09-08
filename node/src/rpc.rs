@@ -57,9 +57,7 @@ where
         client.clone(),
     )));
 
-    io.extend_with(
-        ContractsApi::to_delegate(Contracts::new(client.clone()))
-    );
+    io.extend_with(ContractsApi::to_delegate(Contracts::new(client.clone())));
 
     // Extend this RPC with a custom API by using the following syntax.
     // `YourRpcStruct` should have a reference to a client, which is needed
