@@ -1,6 +1,6 @@
 use node_template_runtime::{
-    AccountId, AuraConfig, BalancesConfig, CurrencyId, GenesisConfig, GrandpaConfig, Signature,
-    SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
+    AccountId, AuraConfig, BalancesConfig, ContractsConfig, CurrencyId, GenesisConfig,
+    GrandpaConfig, Signature, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::ed25519::AuthorityId as AuraId;
@@ -157,11 +157,14 @@ fn testnet_genesis(
             balances: endowed_accounts
                 .iter()
                 .cloned()
-                .map(|k| (k, 1000_000_000_000u128))
+                .map(|k| (k, 1000_000_000_000_000_000u128))
                 .collect(),
         }),
         pallet_aura: Some(AuraConfig {
             authorities: initial_authorities.iter().map(|x| (x.0.clone())).collect(),
+        }),
+        pallet_contracts: Some(ContractsConfig {
+            current_schedule: pallet_contracts::Schedule::default(),
         }),
         pallet_grandpa: Some(GrandpaConfig {
             authorities: initial_authorities

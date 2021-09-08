@@ -52,10 +52,15 @@ pub use frame_support::{
     traits::{KeyOwnerProofSystem, Randomness},
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-        IdentityFee, Weight,
+        DispatchClass, IdentityFee, Weight,
     },
     StorageValue,
 };
+
+use pallet_contracts::chain_extension::{
+    ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
+};
+use pallet_contracts::weights::WeightInfo;
 
 use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::{Perbill, Permill};
@@ -395,6 +400,183 @@ where
     }
 }
 
+//--------------------- Chain Extension --------------------------
+
+pub struct BalanceChainExtension;
+use sp_runtime::DispatchError;
+
+use core::convert::TryFrom;
+use orml_traits::MultiCurrency;
+use sp_std::str;
+
+type FetchBalanceInput = [u8; 32 + 32 + 12]; // 1-> owner:AccountId, 2-> asset_issuer: [u8;32], 3-> asset_code: [u8;12]
+type TransferBalanceInput = [u8; 32 + 32 + 32 + 12 + 16]; // 1-> from: AccoundId, 2-> to: AccountId, 3-> asset_issuer: [u8;32], 4-> asset_code: [u8;12], 5-> balance: u128
+
+impl ChainExtension<Runtime> for BalanceChainExtension {
+    fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+    where
+        <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+    {
+        debug::info!("Call chain extension: {:?}", func_id,);
+
+        match func_id {
+            // fetch_balance()
+            1101 => {
+                let mut env = env.buf_in_buf_out();
+                let input = env.read_as::<FetchBalanceInput>();
+                match input {
+                    Ok(input) => {
+                        let mut account_array: [u8; 32] = Default::default();
+                        account_array.copy_from_slice(&input[0..32]);
+                        let account_id = AccountId::from(account_array);
+
+                        let mut issuer_array: [u8; 32] = Default::default();
+                        issuer_array.copy_from_slice(&input[32..64]);
+
+                        let mut asset_code_array: [u8; 12] = Default::default();
+                        asset_code_array.copy_from_slice(&input[64..]);
+                        let asset_str: &str = str::from_utf8(&asset_code_array).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to decode asset")
+                        })?;
+                        let asset_str = asset_str.trim_matches(char::from(0));
+                        let currency_id: CurrencyId =
+                            CurrencyId::try_from((asset_str, issuer_array))?;
+
+                        let balance = <Tokens as MultiCurrency<AccountId>>::total_balance(
+                            currency_id,
+                            &account_id,
+                        );
+
+                        let ret_val = balance.encode();
+                        env.write(&ret_val, false, None).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to fetch balance")
+                        })?;
+                    }
+                    Err(err) => {
+                        debug::info!("encountered error: {:?}", err);
+                    }
+                }
+            }
+            // transfer_balance()
+            1102 => {
+                let mut env = env.buf_in_buf_out();
+                let input = env.read_as::<TransferBalanceInput>();
+                match input {
+                    Ok(input) => {
+                        let mut from_account_array: [u8; 32] = Default::default();
+                        from_account_array.copy_from_slice(&input[0..32]);
+                        let from_account_id = AccountId::from(from_account_array);
+
+                        let mut to_account_array: [u8; 32] = Default::default();
+                        to_account_array.copy_from_slice(&input[32..64]);
+                        let to_account_id = AccountId::from(to_account_array);
+
+                        let mut issuer_array: [u8; 32] = Default::default();
+                        issuer_array.copy_from_slice(&input[64..96]);
+
+                        let mut asset_code_array: [u8; 12] = Default::default();
+                        asset_code_array.copy_from_slice(&input[96..108]);
+                        let asset_str: &str = str::from_utf8(&asset_code_array).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to decode asset")
+                        })?;
+                        let asset_str = asset_str.trim_matches(char::from(0));
+                        let currency_id: CurrencyId =
+                            CurrencyId::try_from((asset_str, issuer_array))?;
+
+                        let mut amount_array: [u8; 16] = Default::default();
+                        amount_array.copy_from_slice(&input[108..]);
+                        let amount: u128 = u128::from_le_bytes(amount_array);
+
+                        let dispatch_result = <Currencies as MultiCurrency<AccountId>>::transfer(
+                            currency_id,
+                            &from_account_id,
+                            &to_account_id,
+                            amount,
+                        );
+
+                        let ret_val = dispatch_result.encode();
+                        env.write(&ret_val, false, None).map_err(|_| {
+                            DispatchError::Other("ChainExtension failed to fetch balance")
+                        })?;
+                    }
+                    Err(err) => {
+                        debug::info!("encountered error: {:?}", err);
+                    }
+                }
+            }
+
+            _ => {
+                // error!("Called an unregistered `func_id`: {:}", func_id);
+                return Err(DispatchError::Other("Unimplemented func_id"));
+            }
+        }
+        Ok(RetVal::Converging(0))
+    }
+
+    fn enabled() -> bool {
+        true
+    }
+}
+
+//--------------------- Begining of pallet-contracts configuration ---------------------
+
+// Money
+pub const MILLICENTS: Balance = 1_000_000_000;
+pub const CENTS: Balance = 1_000 * MILLICENTS;
+pub const DOLLARS: Balance = 100 * CENTS;
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+
+pub const CANS: Balance = CENTS;
+
+const fn deposit(items: u32, bytes: u32) -> Balance {
+    items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+}
+
+parameter_types! {
+    pub const TombstoneDeposit: Balance = deposit(1, 1);
+    pub const DepositPerContract: Balance = TombstoneDeposit::get();
+    pub const DepositPerStorageByte: Balance = deposit(0, 1);
+    pub const DepositPerStorageItem: Balance = deposit(1, 0);
+    pub RentFraction: Perbill = Perbill::from_rational_approximation(1u32, 30 * DAYS);
+    pub const SurchargeReward: Balance = 150 * MILLICENTS;
+    pub const SignedClaimHandicap: u32 = 2;
+    pub const MaxDepth: u32 = 32;
+    pub const MaxValueSize: u32 = 16 * 1024;
+    // The lazy deletion runs inside on_initialize.
+    pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
+        BlockWeights::get().max_block;
+    // The weight needed for decoding the queue should be less or equal than a fifth
+    // of the overall weight dedicated to the lazy deletion.
+    pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
+            <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
+            <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
+        )) / 5) as u32;
+    pub MaxCodeSize: u32 = 128 * 1024;
+}
+
+impl pallet_contracts::Config for Runtime {
+    type Time = Timestamp;
+    type Randomness = RandomnessCollectiveFlip;
+    type Currency = Balances;
+    type Event = Event;
+    type RentPayment = ();
+    type SignedClaimHandicap = SignedClaimHandicap;
+    type TombstoneDeposit = TombstoneDeposit;
+    type DepositPerContract = DepositPerContract;
+    type DepositPerStorageByte = DepositPerStorageByte;
+    type DepositPerStorageItem = DepositPerStorageItem;
+    type RentFraction = RentFraction;
+    type SurchargeReward = SurchargeReward;
+    type MaxDepth = MaxDepth;
+    type MaxValueSize = MaxValueSize;
+    type WeightPrice = pallet_transaction_payment::Module<Self>;
+    type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
+    type ChainExtension = BalanceChainExtension;
+    type DeletionQueueDepth = DeletionQueueDepth;
+    type DeletionWeightLimit = DeletionWeightLimit;
+    type MaxCodeSize = MaxCodeSize;
+}
+//--------------------- End of pallet-contracts configuration ---------------------
 impl frame_system::offchain::SigningTypes for Runtime {
     type Public = <Signature as sp_runtime::traits::Verify>::Signer;
     type Signature = Signature;
@@ -407,6 +589,7 @@ where
     type OverarchingCall = Call;
     type Extrinsic = UncheckedExtrinsic;
 }
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
     pub enum Runtime where
@@ -422,6 +605,7 @@ construct_runtime!(
         Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
+        Contracts: pallet_contracts::{Module, Call, Config<T>, Storage, Event<T>},
 
         // ORML modules for handling Multi Currency
         Currencies: orml_currencies::{Module, Call, Event<T>},
@@ -592,6 +776,33 @@ impl_runtime_apis! {
             len: u32,
         ) -> pallet_transaction_payment::FeeDetails<Balance> {
             TransactionPayment::query_fee_details(uxt, len)
+        }
+    }
+
+    impl pallet_contracts_rpc_runtime_api::ContractsApi<Block, AccountId, Balance, BlockNumber>
+        for Runtime
+    {
+        fn call(
+            origin: AccountId,
+            dest: AccountId,
+            value: Balance,
+            gas_limit: u64,
+            input_data: Vec<u8>,
+        ) -> pallet_contracts_primitives::ContractExecResult {
+            Contracts::bare_call(origin, dest, value, gas_limit, input_data )
+        }
+
+        fn get_storage(
+            address: AccountId,
+            key: [u8; 32],
+        ) -> pallet_contracts_primitives::GetStorageResult {
+            Contracts::get_storage(address, key)
+        }
+
+        fn rent_projection(
+            address: AccountId,
+        ) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
+            Contracts::rent_projection(address)
         }
     }
 
