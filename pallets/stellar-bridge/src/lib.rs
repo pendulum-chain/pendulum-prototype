@@ -152,15 +152,11 @@ pub mod pallet {
         type BalanceConversion: StaticLookup<Source = BalanceOf<Self>, Target = i64>;
         type StringCurrencyConversion: Convert<(Vec<u8>, Vec<u8>), Result<CurrencyIdOf<Self>, ()>>;
 
-        type GatewayEscrowAccount: Get<&'static str>;
-        type GatewayEscrowKeypair: Get<SecretKey>;
-        type GatewayMockedDestination: Get<<Self as frame_system::Config>::AccountId>;
-        type GatewayMockedStellarAsset: Get<stellar::Asset>;
         /// Conversion between Stellar asset type and this pallet trait for Currency
         type CurrencyConversion: StaticLookup<Source = CurrencyIdOf<Self>, Target = stellar::Asset>;
 
         /// The escrow account
-        type GatewayEscrowSecretKey: Get<stellar::SecretKey>;
+        type GatewayEscrowKeypair: Get<SecretKey>;
     }
 
     #[pallet::event]
@@ -310,8 +306,9 @@ pub mod pallet {
             amount: BalanceOf<T>,
         ) -> Result<stellar::Transaction, Error<T>> {
             let destination_addr = stellar_addr.as_binary();
-            let source_pubkey = stellar::PublicKey::from_encoding(T::GatewayEscrowAccount::get())
-                .map_err(|_| <Error<T>>::StellarAddressParsingError)?;
+
+            let source_keypair = T::GatewayEscrowKeypair::get();
+            let source_pubkey = source_keypair.get_public().clone();
 
             let mut tx =
                 stellar::Transaction::new(source_pubkey, seq_num, Some(10_000), None, None)?;
@@ -337,7 +334,13 @@ pub mod pallet {
 
             let asset = T::CurrencyConversion::lookup(currency_id)?;
 
-            let escrow_address = T::GatewayEscrowAccount::get();
+            let escrow_encoded = T::GatewayEscrowKeypair::get()
+                .get_public()
+                .to_encoding()
+                .clone();
+            let escrow_address = str::from_utf8(escrow_encoded.as_slice())
+                .map_err(|_| <Error<T>>::StellarAddressParsingError)?;
+
             let stellar_address = T::AddressConversion::lookup(pendulum_account_id.clone())?;
 
             debug::info!(
@@ -506,8 +509,11 @@ pub mod pallet {
 
         /// Fetch recent transactions from remote and deserialize to HorizonResponse
         fn fetch_latest_txs() -> Result<HorizonTransactionsResponse, Error<T>> {
+            let escrow_keypair = T::GatewayEscrowKeypair::get();
+            let escrow_address = escrow_keypair.get_public();
+
             let request_url = String::from("https://horizon-testnet.stellar.org/accounts/")
-                + T::GatewayEscrowAccount::get()
+                + str::from_utf8(escrow_address.to_encoding().as_slice())?
                 + "/transactions?order=desc&limit=1";
 
             let response = Self::fetch_from_remote(request_url.as_str()).map_err(|e| {
@@ -554,7 +560,7 @@ pub mod pallet {
         }
 
         fn is_escrow(public_key: [u8; 32]) -> bool {
-            return public_key == *T::GatewayEscrowSecretKey::get().get_public().as_binary();
+            return public_key == *T::GatewayEscrowKeypair::get().get_public().as_binary();
         }
 
         fn process_new_transaction(transaction: stellar::types::Transaction) {
