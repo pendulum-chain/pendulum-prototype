@@ -23,7 +23,7 @@ use sc_service::PartialComponents;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
-        "Substrate Node".into()
+        "Pendulum".into()
     }
 
     fn impl_version() -> String {
@@ -39,7 +39,7 @@ impl SubstrateCli for Cli {
     }
 
     fn support_url() -> String {
-        "support.anonymous.an".into()
+        "https://github.com/pendulum-chain".into()
     }
 
     fn copyright_start_year() -> i32 {
