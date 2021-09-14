@@ -7,8 +7,8 @@
 
 use std::sync::Arc;
 
-use node_template_runtime::{opaque::Block, AccountId, Balance, BlockNumber, Index};
 use pallet_contracts_rpc::{Contracts, ContractsApi};
+use pendulum_node_runtime::{opaque::Block, AccountId, Balance, BlockNumber, Index};
 pub use sc_rpc_api::DenyUnsafe;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
