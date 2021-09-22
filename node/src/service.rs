@@ -1,6 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
-use node_template_runtime::{self, opaque::Block, RuntimeApi};
+use pendulum_node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_executor::native_executor_instance;
 pub use sc_executor::NativeExecutor;
@@ -15,8 +15,8 @@ use std::time::Duration;
 // Our native executor instance.
 native_executor_instance!(
     pub Executor,
-    node_template_runtime::api::dispatch,
-    node_template_runtime::native_version,
+    pendulum_node_runtime::api::dispatch,
+    pendulum_node_runtime::native_version,
     frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -162,7 +162,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         // Typically these keys should be inserted with RPC calls to `author_insertKey`.
         sp_keystore::SyncCryptoStore::ed25519_generate_new(
             &*keystore,
-            node_template_runtime::pallet_stellar_bridge::KEY_TYPE,
+            pendulum_node_runtime::pallet_stellar_bridge::KEY_TYPE,
             Some("//Alice"),
         )
         .expect("Creating key with account Alice should succeed.");

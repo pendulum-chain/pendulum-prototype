@@ -1,4 +1,4 @@
-use node_template_runtime::{
+use pendulum_node_runtime::{
     AccountId, AuraConfig, BalancesConfig, ContractsConfig, CurrencyId, GenesisConfig,
     GrandpaConfig, Signature, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
