@@ -192,7 +192,7 @@ The repository is hosted in [pendulum-chain/pendulum-prototype](https://github.c
 
 ## Setup locally
 
-1. [Complete rust setup](https://github.com/substrate-developer-hub/substrate-node-template/blob/master/docs/rust-setup.md) on your machine.
+1. [Complete rust setup](https://github.com/substrate-developer-hub/substrate-node-template/blob/master/doc/rust-setup.md) on your machine.
 2. `git clone git@github.com:pendulum-chain/pendulum-prototype.git`
 3. `cd pendulum-prototype`
 4. `cargo run --release -- --dev --tmp`
