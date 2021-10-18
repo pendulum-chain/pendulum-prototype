@@ -3952,6 +3952,7 @@ dependencies = [
  "base64 0.13.0",
  "frame-support",
  "frame-system",
+ "hex",
  "orml-currencies",
  "orml-tokens",
  "orml-traits",

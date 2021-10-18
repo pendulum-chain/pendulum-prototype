@@ -21,6 +21,8 @@ use sp_runtime::{MultiSignature, RuntimeDebug};
 use sp_std::convert::From;
 use sp_std::{prelude::*, str};
 
+use hex;
+
 use orml_traits::MultiCurrency;
 
 use serde::Deserialize;
@@ -130,8 +132,8 @@ pub mod pallet {
     use sp_runtime::offchain::HttpError;
     use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
-    use stellar::types::{ClaimClaimableBalanceOp, OperationBody, PaymentOp};
-    use stellar::{IntoClaimbleBalanceId, SecretKey, StellarSdkError, XdrCodec};
+    use stellar::types::{OperationBody, PaymentOp};
+    use stellar::{SecretKey, StellarSdkError, XdrCodec};
 
     #[pallet::config]
     pub trait Config:
@@ -714,36 +716,40 @@ pub mod pallet {
             for cb in cb_list {
                 let asset = &cb.asset;
 
-                 /*  let potential_trusted_asset =
-                    sp_runtime::offchain::storage::StorageValue::get(&asset.clone());
+                /*  let potential_trusted_asset =
+                sp_runtime::offchain::storage::StorageValue::get(&asset.clone());
 
-                    if potential_trusted_asset.is_some() {
-                    debug::info!(
-                        "###### Here we go one CB asset : {:?}",
-                        str::from_utf8(&potential_trusted_asset.unwrap()).unwrap()
-                    );*/
+                if potential_trusted_asset.is_some() {
+                debug::info!(
+                    "###### Here we go one CB asset : {:?}",
+                    str::from_utf8(&potential_trusted_asset.unwrap()).unwrap()
+                );*/
 
-                   let stringed  = str::from_utf8(&cb.id);
-                   let slice = &cb.id[..];
-                  // let bin = stellar::AsBinary::Binary(slice);
-                    debug::info!("############################### LENGTH of vec {:?}", stringed);
+                let stringed = str::from_utf8(&cb.id);
+                debug::info!(
+                    "############################### LENGTH of vec {:?}",
+                    stringed
+                );
 
-                    //let mut cv_arr: [u8; 32] = Default::default();
-                      //cv_arr.copy_from_slice(&cb.id[..]);
+                let mut bytes: [u8; 32] = Default::default();
 
-                   // let cb_id = stellar::ClaimableBalanceId::ClaimableBalanceIdTypeV0(bin);
-                    let operation = stellar::Operation::new_claim_claimable_balance(bin).unwrap();
+                // FIXME handle result
+                hex::decode_to_slice(&cb.id, &mut bytes as &mut [u8]).ok();
 
-                     transaction.append_operation(operation);
-                 /*     } else {
+                let cb_id = stellar::ClaimableBalanceId::ClaimableBalanceIdTypeV0(bytes);
+                let operation = stellar::Operation::new_claim_claimable_balance(cb_id).unwrap();
+
+                // FIXME handle result
+                transaction.append_operation(operation).ok();
+                /*     } else {
                     debug::info!("###### Asset Not trusted");
-                    
+
                     sp_runtime::offchain::storage::StorageValueRef::persistent(potential_trusted_asset.unwrap(), &1);
                 }*/
-            }        
+            }
 
-           // let signed_envelope = Self::sign_stellar_tx(transaction, source_keypair).unwrap();
-           // let result = Self::submit_stellar_tx(signed_envelope);           
+            // let signed_envelope = Self::sign_stellar_tx(transaction, source_keypair).unwrap();
+            // let result = Self::submit_stellar_tx(signed_envelope);
             debug::info!("✔️ Successfully submitted Claim Balances transaction to Stellar");
         }
     }
