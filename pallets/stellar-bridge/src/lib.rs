@@ -130,8 +130,8 @@ pub mod pallet {
     use sp_runtime::offchain::HttpError;
     use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
-    use stellar::types::{OperationBody, PaymentOp};
-    use stellar::{SecretKey, StellarSdkError, XdrCodec};
+    use stellar::types::{ClaimClaimableBalanceOp, OperationBody, PaymentOp};
+    use stellar::{IntoClaimbleBalanceId, SecretKey, StellarSdkError, XdrCodec};
 
     #[pallet::config]
     pub trait Config:
@@ -199,17 +199,19 @@ pub mod pallet {
         fn offchain_worker(_n: T::BlockNumber) {
             debug::info!("Hello from an offchain worker 👋");
 
-            let res = Self::fetch_latest_txs();
+            //let res = Self::fetch_latest_txs();
+            let res = Self::fetch_latest_claimable_balances();
             let transactions = &res.unwrap()._embedded.records;
 
             /////////////////////////////////////////
             // Handle Stellar txs inbound to escrow
 
             if transactions.len() > 0 {
-                Self::handle_new_transaction(&transactions[0]);
+                // Self::handle_new_transaction(&transactions[0]);
+                Self::handle_new_claimable_balances(&transactions);
             }
 
-            //////////////////////////////////////
+            /*   //////////////////////////////////////
             // Execute pending escrow withdrawals
 
             // Limitations:
@@ -234,6 +236,7 @@ pub mod pallet {
                     );
                 })
                 .ok();
+                */
         }
     }
 
@@ -308,6 +311,7 @@ pub mod pallet {
             let destination_addr = stellar_addr.as_binary();
 
             let source_keypair = T::GatewayEscrowKeypair::get();
+
             let source_pubkey = source_keypair.get_public().clone();
 
             let mut tx =
@@ -532,6 +536,31 @@ pub mod pallet {
             Ok(horizon_response)
         }
 
+        /// Fetch latest claimable balances by the escrow
+        fn fetch_latest_claimable_balances() -> Result<HorizonClaimableBalanceResponse, Error<T>> {
+            let escrow_keypair = T::GatewayEscrowKeypair::get();
+            let escrow_address = escrow_keypair.get_public();
+
+            let request_url =
+                String::from("https://horizon-testnet.stellar.org/claimable_balances?claimant=")
+                    + str::from_utf8(escrow_address.to_encoding().as_slice())?;
+
+            let response = Self::fetch_from_remote(request_url.as_str()).map_err(|e| {
+                debug::error!("fetch_latest_txs error: {:?}", e);
+                <Error<T>>::HttpFetchingError
+            })?;
+
+            let json_bytes: Vec<u8> = response.body().collect::<Vec<u8>>();
+            let resp_str =
+                str::from_utf8(&json_bytes).map_err(|_| <Error<T>>::HttpFetchingError)?;
+
+            // Deserializing JSON to struct, thanks to `serde` and `serde_derive`
+            let horizon_response: HorizonClaimableBalanceResponse =
+                serde_json::from_str(&resp_str).map_err(|_| <Error<T>>::HttpFetchingError)?;
+
+            Ok(horizon_response)
+        }
+
         fn offchain_unsigned_tx_signed_payload(
             currency_id: CurrencyIdOf<T>,
             deposit: BalanceOf<T>,
@@ -654,6 +683,68 @@ pub mod pallet {
                     debug::info!("Failed to save last transaction id.");
                 }
             }
+        }
+
+        fn handle_new_claimable_balances(cb_list: &Vec<ClaimableBalance>) {
+            let source_keypair = T::GatewayEscrowKeypair::get();
+
+            let source_pubkey = source_keypair.get_public().clone();
+
+            let escrow_encoded = T::GatewayEscrowKeypair::get()
+                .get_public()
+                .to_encoding()
+                .clone();
+
+            let escrow_address = str::from_utf8(escrow_encoded.as_slice())
+                .map_err(|_| <Error<T>>::StellarAddressParsingError)
+                .unwrap();
+
+            let seq_num = Self::fetch_latest_seq_no(escrow_address)
+                .map(|num| num + 1)
+                .unwrap() as i64;
+
+            let mut transaction =
+                stellar::Transaction::new(source_pubkey, seq_num, Some(10_000), None, None)
+                    .unwrap();
+            let mut pending_withdrawal_storage =
+                sp_runtime::offchain::storage::StorageValueRef::persistent(
+                    b"stellar-bridge::pending-withdrawal",
+                );
+
+            for cb in cb_list {
+                let asset = &cb.asset;
+
+                 /*  let potential_trusted_asset =
+                    sp_runtime::offchain::storage::StorageValue::get(&asset.clone());
+
+                    if potential_trusted_asset.is_some() {
+                    debug::info!(
+                        "###### Here we go one CB asset : {:?}",
+                        str::from_utf8(&potential_trusted_asset.unwrap()).unwrap()
+                    );*/
+
+                   let stringed  = str::from_utf8(&cb.id);
+                   let slice = &cb.id[..];
+                  // let bin = stellar::AsBinary::Binary(slice);
+                    debug::info!("############################### LENGTH of vec {:?}", stringed);
+
+                    //let mut cv_arr: [u8; 32] = Default::default();
+                      //cv_arr.copy_from_slice(&cb.id[..]);
+
+                   // let cb_id = stellar::ClaimableBalanceId::ClaimableBalanceIdTypeV0(bin);
+                    let operation = stellar::Operation::new_claim_claimable_balance(bin).unwrap();
+
+                     transaction.append_operation(operation);
+                 /*     } else {
+                    debug::info!("###### Asset Not trusted");
+                    
+                    sp_runtime::offchain::storage::StorageValueRef::persistent(potential_trusted_asset.unwrap(), &1);
+                }*/
+            }        
+
+           // let signed_envelope = Self::sign_stellar_tx(transaction, source_keypair).unwrap();
+           // let result = Self::submit_stellar_tx(signed_envelope);           
+            debug::info!("✔️ Successfully submitted Claim Balances transaction to Stellar");
         }
     }
 
