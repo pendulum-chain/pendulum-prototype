@@ -594,98 +594,98 @@ pub mod pallet {
             return public_key == *T::GatewayEscrowKeypair::get().get_public().as_binary();
         }
 
-        fn process_new_transaction(transaction: stellar::types::Transaction) {
-            // The destination of a mirrored Pendulum transaction, is always derived of the source account that initiated
-            // the Stellar transaction.
-            let destination =
-                if let stellar::MuxedAccount::KeyTypeEd25519(key) = transaction.source_account {
-                    T::AddressConversion::unlookup(stellar::PublicKey::from_binary(key))
-                } else {
-                    debug::error!("❌  Source account format not supported.");
-                    return;
-                };
+        // fn process_new_transaction(transaction: stellar::types::Transaction) {
+        //     // The destination of a mirrored Pendulum transaction, is always derived of the source account that initiated
+        //     // the Stellar transaction.
+        //     let destination =
+        //         if let stellar::MuxedAccount::KeyTypeEd25519(key) = transaction.source_account {
+        //             T::AddressConversion::unlookup(stellar::PublicKey::from_binary(key))
+        //         } else {
+        //             debug::error!("❌  Source account format not supported.");
+        //             return;
+        //         };
 
-            let payment_ops: Vec<&PaymentOp> = transaction
-                .operations
-                .get_vec()
-                .into_iter()
-                .filter_map(|op| match &op.body {
-                    OperationBody::Payment(p) => Some(p),
-                    _ => None,
-                })
-                .collect();
+        //     let payment_ops: Vec<&PaymentOp> = transaction
+        //         .operations
+        //         .get_vec()
+        //         .into_iter()
+        //         .filter_map(|op| match &op.body {
+        //             OperationBody::Payment(p) => Some(p),
+        //             _ => None,
+        //         })
+        //         .collect();
 
-            for payment_op in payment_ops {
-                let dest_account = stellar::MuxedAccount::from(payment_op.destination.clone());
-                debug::info!("Muxed account {:#?}", dest_account);
+        //     for payment_op in payment_ops {
+        //         let dest_account = stellar::MuxedAccount::from(payment_op.destination.clone());
+        //         debug::info!("Muxed account {:#?}", dest_account);
 
-                if let stellar::MuxedAccount::KeyTypeEd25519(payment_dest_public_key) =
-                    payment_op.destination
-                {
-                    if Self::is_escrow(payment_dest_public_key) {
-                        let amount = T::BalanceConversion::unlookup(payment_op.amount);
-                        let currency = T::CurrencyConversion::unlookup(payment_op.asset.clone());
+        //         if let stellar::MuxedAccount::KeyTypeEd25519(payment_dest_public_key) =
+        //             payment_op.destination
+        //         {
+        //             if Self::is_escrow(payment_dest_public_key) {
+        //                 let amount = T::BalanceConversion::unlookup(payment_op.amount);
+        //                 let currency = T::CurrencyConversion::unlookup(payment_op.asset.clone());
 
-                        debug::info!("Pendulum address for deposit {:?}", destination);
-                        debug::info!("Currency {:?}", currency);
-                        debug::info!("Amount {:?}", amount);
+        //                 debug::info!("Pendulum address for deposit {:?}", destination);
+        //                 debug::info!("Currency {:?}", currency);
+        //                 debug::info!("Amount {:?}", amount);
 
-                        match Self::offchain_unsigned_tx_signed_payload(
-                            currency,
-                            amount,
-                            destination,
-                        ) {
-                            Err(_) => debug::warn!("Sending the tx failed."),
-                            Ok(_) => (),
-                        }
+        //                 match Self::offchain_unsigned_tx_signed_payload(
+        //                     currency,
+        //                     amount,
+        //                     destination,
+        //                 ) {
+        //                     Err(_) => debug::warn!("Sending the tx failed."),
+        //                     Ok(_) => (),
+        //                 }
 
-                        return;
-                    }
-                }
-            }
-        }
+        //                 return;
+        //             }
+        //         }
+        //     }
+        // }
 
-        fn handle_new_transaction(tx: &Transaction) {
-            const UP_TO_DATE: () = ();
+        // fn handle_new_transaction(tx: &Transaction) {
+        //     const UP_TO_DATE: () = ();
 
-            let latest_tx_id_utf8 = &tx.id;
+        //     let latest_tx_id_utf8 = &tx.id;
 
-            let id_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(
-                b"stellar-bridge:last-tx-id",
-            );
+        //     let id_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(
+        //         b"stellar-bridge:last-tx-id",
+        //     );
 
-            let prev_read = id_storage.get::<Vec<u8>>();
-            let initial = !matches!(prev_read, Some(Some(_)));
+        //     let prev_read = id_storage.get::<Vec<u8>>();
+        //     let initial = !matches!(prev_read, Some(Some(_)));
 
-            let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
-                match last_stored_tx_id {
-                    Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
-                    _ => Ok(latest_tx_id_utf8.clone()),
-                }
-            });
+        //     let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
+        //         match last_stored_tx_id {
+        //             Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
+        //             _ => Ok(latest_tx_id_utf8.clone()),
+        //         }
+        //     });
 
-            match res {
-                Ok(Ok(saved_tx_id)) => {
-                    if !initial {
-                        debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
+        //     match res {
+        //         Ok(Ok(saved_tx_id)) => {
+        //             if !initial {
+        //                 debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
-                        // Decode transaction to Base64 and then to Stellar XDR to get transaction details
-                        let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
-                        let tx_envelope = stellar::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
+        //                 // Decode transaction to Base64 and then to Stellar XDR to get transaction details
+        //                 let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
+        //                 let tx_envelope = stellar::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
 
-                        if let stellar::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
-                            Self::process_new_transaction(env.tx);
-                        }
-                    }
-                }
-                Err(UP_TO_DATE) => {
-                    debug::info!("Already up to date");
-                }
-                Ok(Err(_)) => {
-                    debug::info!("Failed to save last transaction id.");
-                }
-            }
-        }
+        //                 if let stellar::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+        //                     Self::process_new_transaction(env.tx);
+        //                 }
+        //             }
+        //         }
+        //         Err(UP_TO_DATE) => {
+        //             debug::info!("Already up to date");
+        //         }
+        //         Ok(Err(_)) => {
+        //             debug::info!("Failed to save last transaction id.");
+        //         }
+        //     }
+        // }
 
         fn handle_new_claimable_balances(cb_list: &Vec<ClaimableBalance>) {
             let source_keypair = T::GatewayEscrowKeypair::get();
