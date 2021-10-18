@@ -83,14 +83,12 @@ pub struct HorizonClaimableBalanceResponse {
     pub _embedded: EmbeddedClaimableBalance,
 }
 
-
 // The following structs represent the whole response when fetching any Horizon API
 // for retreiving a list of claimable balances for an account
 #[derive(Deserialize, Debug)]
 pub struct EmbeddedClaimableBalance {
     pub records: Vec<ClaimableBalance>,
 }
-
 
 // This represents each record for a claimable balance in the Horizon API response
 #[derive(Deserialize, Encode, Decode, Default, Debug)]
@@ -107,7 +105,6 @@ pub struct ClaimableBalance {
     pub last_modified_ledger: u32,
     #[serde(deserialize_with = "de_string_to_bytes")]
     pub last_modified_time: Vec<u8>,
-
 }
 
 // This represents a Claimant
@@ -115,7 +112,6 @@ pub struct ClaimableBalance {
 pub struct Claimant {
     #[serde(deserialize_with = "de_string_to_bytes")]
     pub destination: Vec<u8>,
-
     // For now we assume that the predicate is always unconditional
     // pub predicate: serde_json::Value,
 }
