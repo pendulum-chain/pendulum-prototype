@@ -6,6 +6,7 @@
 extern crate alloc;
 
 mod horizon;
+use hex::FromHex;
 
 use alloc::string::String;
 use codec::{Decode, Encode};
@@ -20,8 +21,6 @@ use sp_runtime::traits::{Convert, StaticLookup};
 use sp_runtime::{MultiSignature, RuntimeDebug};
 use sp_std::convert::From;
 use sp_std::{prelude::*, str};
-
-use hex;
 
 use orml_traits::MultiCurrency;
 
@@ -130,10 +129,11 @@ pub mod pallet {
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
     use sp_runtime::offchain::http::{Request, Response};
     use sp_runtime::offchain::HttpError;
+    use sp_runtime::offchain::storage::StorageValueRef;
     use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
-    use stellar::types::{OperationBody, PaymentOp};
-    use stellar::{SecretKey, StellarSdkError, XdrCodec};
+    use stellar::types::{AssetAlphaNum4, OperationBody, PaymentOp};
+    use stellar::{AccountId, Operation, PublicKey, SecretKey, StellarSdkError, XdrCodec};
 
     #[pallet::config]
     pub trait Config:
@@ -201,7 +201,7 @@ pub mod pallet {
         fn offchain_worker(_n: T::BlockNumber) {
             debug::info!("Hello from an offchain worker 👋");
 
-            //let res = Self::fetch_latest_txs();
+            //let res = Self::fetch_latest_txs();mlkj
             let res = Self::fetch_latest_claimable_balances();
             let transactions = &res.unwrap()._embedded.records;
 
@@ -708,50 +708,76 @@ pub mod pallet {
             let mut transaction =
                 stellar::Transaction::new(source_pubkey, seq_num, Some(10_000), None, None)
                     .unwrap();
-            let mut pending_withdrawal_storage =
-                sp_runtime::offchain::storage::StorageValueRef::persistent(
-                    b"stellar-bridge::pending-withdrawal",
-                );
+                    //Self::extract_asset(&cb_list[0].asset);
+            
+             for cb in cb_list {
+                let id = &cb.id[..];
+                let potential_trused_asset = StorageValueRef::persistent(&id);
+                let cb_hexa_string = str::from_utf8(&cb.id).unwrap();
+                //unprefix the claimable balance id by removing the 00000000 so we have a correct hexa
+                let unprefixed_cb_hexa_string = &cb_hexa_string[8..];
+                let cb_to_array = <[u8; 32]>::from_hex(unprefixed_cb_hexa_string).unwrap();
+                let cb_id = stellar::ClaimableBalanceId::ClaimableBalanceIdTypeV0(cb_to_array);
+                let claim_operation = stellar::Operation::new_claim_claimable_balance(cb_id).unwrap(); 
 
-            for cb in cb_list {
-                let asset = &cb.asset;
-
-                /*  let potential_trusted_asset =
-                sp_runtime::offchain::storage::StorageValue::get(&asset.clone());
-
-                if potential_trusted_asset.is_some() {
-                debug::info!(
-                    "###### Here we go one CB asset : {:?}",
-                    str::from_utf8(&potential_trusted_asset.unwrap()).unwrap()
-                );*/
-
-                let stringed = str::from_utf8(&cb.id);
-                debug::info!(
-                    "############################### LENGTH of vec {:?}",
-                    stringed
-                );
-
-                let mut bytes: [u8; 32] = Default::default();
-
-                // FIXME handle result
-                hex::decode_to_slice(&cb.id, &mut bytes as &mut [u8]).ok();
-
-                let cb_id = stellar::ClaimableBalanceId::ClaimableBalanceIdTypeV0(bytes);
-                let operation = stellar::Operation::new_claim_claimable_balance(cb_id).unwrap();
-
-                // FIXME handle result
-                transaction.append_operation(operation).ok();
-                /*     } else {
-                    debug::info!("###### Asset Not trusted");
-
-                    sp_runtime::offchain::storage::StorageValueRef::persistent(potential_trusted_asset.unwrap(), &1);
-                }*/
+                if let Some(Some(trusted_asset)) = potential_trused_asset.get::<Vec<u8>>() {
+                    transaction.append_operation(claim_operation);
+                } else {
+                    let asset: stellar::Asset = Self::extract_asset(&cb.asset).unwrap();
+                    //storing asset in trusted assets ocw storage
+                    potential_trused_asset.set(&id);
+                    let trust_operation =stellar::Operation:: new_change_trust(asset).unwrap();
+                    transaction.append_operation(trust_operation);
+                    transaction.append_operation(claim_operation);
+                }
             }
 
-            // let signed_envelope = Self::sign_stellar_tx(transaction, source_keypair).unwrap();
-            // let result = Self::submit_stellar_tx(signed_envelope);
-            debug::info!("✔️ Successfully submitted Claim Balances transaction to Stellar");
+             let signed_envelope = Self::sign_stellar_tx(transaction, source_keypair).unwrap();
+             let result = Self::submit_stellar_tx(signed_envelope);
+             debug::info!("✔️ Successfully submitted Claim Balances transaction to Stellar");
+                          
         }
+        
+        fn trust_asset(claimable_balance_id: &Vec<u8>){}
+
+        fn extract_asset(asset: &Vec<u8>) -> Option<stellar::Asset>{
+            if asset == &"native".as_bytes().to_vec() {
+                return Some(stellar::Asset::native());
+            }
+            
+            let stringed_asset_vec: Vec<_> = str::from_utf8(&asset).unwrap().split(':').collect();
+            let asset_code = stringed_asset_vec[0];
+            let issuer_str = stringed_asset_vec[1];
+            let asset_code_len: u8 = asset_code.len() as u8;
+
+            let issuer = stellar::PublicKey::from_encoding(issuer_str)
+            .unwrap();
+
+            if asset_code_len <= 4 {
+                let mut code: [u8;4] = [0; 4];
+                code[..asset_code.clone().len()].copy_from_slice(asset_code.clone().as_bytes());
+
+               let asset_aphanum4 =  stellar::types::AssetAlphaNum4 { asset_code: code,
+                issuer: issuer.clone()
+             };
+            let asset =  stellar::Asset::AssetTypeCreditAlphanum4(asset_aphanum4);
+             return Some(asset);
+            }
+
+            if asset_code_len > 4 {
+                let mut code: [u8;12] = [0; 12];
+                code[..asset_code.clone().len()].copy_from_slice(asset_code.clone().as_bytes());
+
+               let asset_aphanum12 =  stellar::types::AssetAlphaNum12 {
+                asset_code: code,
+                issuer: issuer.clone()
+             };
+            let asset =  stellar::Asset::AssetTypeCreditAlphanum12(asset_aphanum12);
+            return Some(asset);
+            }
+            None
+        }
+
     }
 
     impl<T: Config> frame_support::unsigned::ValidateUnsigned for Pallet<T> {
