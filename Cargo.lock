@@ -3952,6 +3952,7 @@ dependencies = [
  "base64 0.13.0",
  "frame-support",
  "frame-system",
+ "hex",
  "orml-currencies",
  "orml-tokens",
  "orml-traits",
@@ -7990,7 +7991,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f8ab788026715fa63b31960869617cba39117e520eb415b0139543e325ab59"
 dependencies = [
  "cfg-if 0.1.10",
- "rand 0.7.3",
+ "rand 0.3.23",
  "static_assertions",
 ]
 

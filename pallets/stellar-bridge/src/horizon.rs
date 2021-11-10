@@ -38,7 +38,7 @@ pub struct Transaction {
 }
 
 // The following structs represent the whole response when fetching any Horizon API
-// In this particular case we asunme the embedded payload will allways be for transactions
+// In this particular case we assume the embedded payload will allways be for transactions
 // ref https://developers.stellar.org/api/introduction/response-format/
 #[derive(Deserialize, Debug)]
 pub struct EmbeddedTransactions {
@@ -72,4 +72,46 @@ where
 {
     let s: &str = Deserialize::deserialize(de)?;
     Ok(s.as_bytes().to_vec())
+}
+
+// Claimable balances objects
+
+#[derive(Deserialize, Debug)]
+pub struct HorizonClaimableBalanceResponse {
+    // We don't care about specifics of pagination, so we just tell serde that this will be a generic json value
+    pub _links: serde_json::Value,
+    pub _embedded: EmbeddedClaimableBalance,
+}
+
+// The following structs represent the whole response when fetching any Horizon API
+// for retreiving a list of claimable balances for an account
+#[derive(Deserialize, Debug)]
+pub struct EmbeddedClaimableBalance {
+    pub records: Vec<ClaimableBalance>,
+}
+
+// This represents each record for a claimable balance in the Horizon API response
+#[derive(Deserialize, Encode, Decode, Default, Debug)]
+pub struct ClaimableBalance {
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub id: Vec<u8>,
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub paging_token: Vec<u8>,
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub asset: Vec<u8>,
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub amount: Vec<u8>,
+    pub claimants: Vec<Claimant>,
+    pub last_modified_ledger: u32,
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub last_modified_time: Vec<u8>,
+}
+
+// This represents a Claimant
+#[derive(Deserialize, Encode, Decode, Default, Debug)]
+pub struct Claimant {
+    #[serde(deserialize_with = "de_string_to_bytes")]
+    pub destination: Vec<u8>,
+    // For now we assume that the predicate is always unconditional
+    // pub predicate: serde_json::Value,
 }
