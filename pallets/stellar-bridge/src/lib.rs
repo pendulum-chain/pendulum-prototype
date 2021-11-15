@@ -128,12 +128,12 @@ pub mod pallet {
     use frame_system::offchain::SendUnsignedTransaction;
     use frame_system::offchain::{AppCrypto, CreateSignedTransaction, Signer};
     use sp_runtime::offchain::http::{Request, Response};
-    use sp_runtime::offchain::HttpError;
     use sp_runtime::offchain::storage::StorageValueRef;
+    use sp_runtime::offchain::HttpError;
     use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
-    use stellar::types::{AssetAlphaNum4, OperationBody, PaymentOp};
-    use stellar::{AccountId, Operation, PublicKey, SecretKey, StellarSdkError, XdrCodec};
+    use stellar::types::{OperationBody, PaymentOp};
+    use stellar::{IntoAmount, SecretKey, StellarSdkError, XdrCodec};
 
     #[pallet::config]
     pub trait Config:
@@ -201,19 +201,22 @@ pub mod pallet {
         fn offchain_worker(_n: T::BlockNumber) {
             debug::info!("Hello from an offchain worker 👋");
 
-            //let res = Self::fetch_latest_txs();mlkj
-            let res = Self::fetch_latest_claimable_balances();
+            let res = Self::fetch_latest_txs();
             let transactions = &res.unwrap()._embedded.records;
+            let res_cb = Self::fetch_latest_claimable_balances();
+            let claimable_balances = &res_cb.unwrap()._embedded.records;
 
             /////////////////////////////////////////
-            // Handle Stellar txs inbound to escrow
+            // Handle Stellar txs inbound or claimable balances to escrow
 
             if transactions.len() > 0 {
-                // Self::handle_new_transaction(&transactions[0]);
-                Self::handle_new_claimable_balances(&transactions);
+                Self::handle_new_transaction(&transactions[0]);
             }
 
-            /*   //////////////////////////////////////
+            if claimable_balances.len() > 0 {
+                Self::handle_new_claimable_balances(&claimable_balances);
+            }
+            //////////////////////////////////////
             // Execute pending escrow withdrawals
 
             // Limitations:
@@ -238,7 +241,6 @@ pub mod pallet {
                     );
                 })
                 .ok();
-                */
         }
     }
 
@@ -594,98 +596,95 @@ pub mod pallet {
             return public_key == *T::GatewayEscrowKeypair::get().get_public().as_binary();
         }
 
-        // fn process_new_transaction(transaction: stellar::types::Transaction) {
-        //     // The destination of a mirrored Pendulum transaction, is always derived of the source account that initiated
-        //     // the Stellar transaction.
-        //     let destination =
-        //         if let stellar::MuxedAccount::KeyTypeEd25519(key) = transaction.source_account {
-        //             T::AddressConversion::unlookup(stellar::PublicKey::from_binary(key))
-        //         } else {
-        //             debug::error!("❌  Source account format not supported.");
-        //             return;
-        //         };
+        fn process_new_transaction(transaction: stellar::types::Transaction) {
+            // The destination of a mirrored Pendulum transaction, is always derived of the source account that initiated
+            // the Stellar transaction.
+            let destination =
+                if let stellar::MuxedAccount::KeyTypeEd25519(key) = transaction.source_account {
+                    T::AddressConversion::unlookup(stellar::PublicKey::from_binary(key))
+                } else {
+                    debug::error!("❌  Source account format not supported.");
+                    return;
+                };
 
-        //     let payment_ops: Vec<&PaymentOp> = transaction
-        //         .operations
-        //         .get_vec()
-        //         .into_iter()
-        //         .filter_map(|op| match &op.body {
-        //             OperationBody::Payment(p) => Some(p),
-        //             _ => None,
-        //         })
-        //         .collect();
+            let payment_ops: Vec<&PaymentOp> = transaction
+                .operations
+                .get_vec()
+                .into_iter()
+                .filter_map(|op| match &op.body {
+                    OperationBody::Payment(p) => Some(p),
+                    _ => None,
+                })
+                .collect();
 
-        //     for payment_op in payment_ops {
-        //         let dest_account = stellar::MuxedAccount::from(payment_op.destination.clone());
-        //         debug::info!("Muxed account {:#?}", dest_account);
+            for payment_op in payment_ops {
+                let _dest_account = stellar::MuxedAccount::from(payment_op.destination.clone());
 
-        //         if let stellar::MuxedAccount::KeyTypeEd25519(payment_dest_public_key) =
-        //             payment_op.destination
-        //         {
-        //             if Self::is_escrow(payment_dest_public_key) {
-        //                 let amount = T::BalanceConversion::unlookup(payment_op.amount);
-        //                 let currency = T::CurrencyConversion::unlookup(payment_op.asset.clone());
+                if let stellar::MuxedAccount::KeyTypeEd25519(payment_dest_public_key) =
+                    payment_op.destination
+                {
+                    if Self::is_escrow(payment_dest_public_key) {
+                        let amount = T::BalanceConversion::unlookup(payment_op.amount);
+                        let currency = T::CurrencyConversion::unlookup(payment_op.asset.clone());
 
-        //                 debug::info!("Pendulum address for deposit {:?}", destination);
-        //                 debug::info!("Currency {:?}", currency);
-        //                 debug::info!("Amount {:?}", amount);
+                        match Self::offchain_unsigned_tx_signed_payload(
+                            currency,
+                            amount,
+                            destination,
+                        ) {
+                            Err(_) => debug::warn!("Sending the tx failed."),
+                            Ok(_) => {
+                                debug::info!("✅ Deposit successfully Executed");
+                                ()
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+        }
 
-        //                 match Self::offchain_unsigned_tx_signed_payload(
-        //                     currency,
-        //                     amount,
-        //                     destination,
-        //                 ) {
-        //                     Err(_) => debug::warn!("Sending the tx failed."),
-        //                     Ok(_) => (),
-        //                 }
+        fn handle_new_transaction(tx: &Transaction) {
+            const UP_TO_DATE: () = ();
 
-        //                 return;
-        //             }
-        //         }
-        //     }
-        // }
+            let latest_tx_id_utf8 = &tx.id;
 
-        // fn handle_new_transaction(tx: &Transaction) {
-        //     const UP_TO_DATE: () = ();
+            let id_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(
+                b"stellar-bridge:last-tx-id",
+            );
 
-        //     let latest_tx_id_utf8 = &tx.id;
+            let prev_read = id_storage.get::<Vec<u8>>();
+            let initial = !matches!(prev_read, Some(Some(_)));
 
-        //     let id_storage = sp_runtime::offchain::storage::StorageValueRef::persistent(
-        //         b"stellar-bridge:last-tx-id",
-        //     );
+            let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
+                match last_stored_tx_id {
+                    Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
+                    _ => Ok(latest_tx_id_utf8.clone()),
+                }
+            });
 
-        //     let prev_read = id_storage.get::<Vec<u8>>();
-        //     let initial = !matches!(prev_read, Some(Some(_)));
+            match res {
+                Ok(Ok(saved_tx_id)) => {
+                    if !initial {
+                        debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
 
-        //     let res = id_storage.mutate(|last_stored_tx_id: Option<Option<Vec<u8>>>| {
-        //         match last_stored_tx_id {
-        //             Some(Some(value)) if value == *latest_tx_id_utf8 => Err(UP_TO_DATE),
-        //             _ => Ok(latest_tx_id_utf8.clone()),
-        //         }
-        //     });
+                        // Decode transaction to Base64 and then to Stellar XDR to get transaction details
+                        let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
+                        let tx_envelope = stellar::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
 
-        //     match res {
-        //         Ok(Ok(saved_tx_id)) => {
-        //             if !initial {
-        //                 debug::info!("✴️  New transaction from Horizon (id {:#?}). Starting to replicate transaction in Pendulum.", str::from_utf8(&saved_tx_id).unwrap());
-
-        //                 // Decode transaction to Base64 and then to Stellar XDR to get transaction details
-        //                 let tx_xdr = base64::decode(&tx.envelope_xdr).unwrap();
-        //                 let tx_envelope = stellar::TransactionEnvelope::from_xdr(&tx_xdr).unwrap();
-
-        //                 if let stellar::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
-        //                     Self::process_new_transaction(env.tx);
-        //                 }
-        //             }
-        //         }
-        //         Err(UP_TO_DATE) => {
-        //             debug::info!("Already up to date");
-        //         }
-        //         Ok(Err(_)) => {
-        //             debug::info!("Failed to save last transaction id.");
-        //         }
-        //     }
-        // }
+                        if let stellar::TransactionEnvelope::EnvelopeTypeTx(env) = tx_envelope {
+                            Self::process_new_transaction(env.tx);
+                        }
+                    }
+                }
+                Err(UP_TO_DATE) => {
+                    debug::info!("Already up to date");
+                }
+                Ok(Err(_)) => {
+                    debug::info!("Failed to save last transaction id.");
+                }
+            }
+        }
 
         fn handle_new_claimable_balances(cb_list: &Vec<ClaimableBalance>) {
             let source_keypair = T::GatewayEscrowKeypair::get();
@@ -705,12 +704,16 @@ pub mod pallet {
                 .map(|num| num + 1)
                 .unwrap() as i64;
 
-            let mut transaction =
-                stellar::Transaction::new(source_pubkey, seq_num, Some(10_000), None, None)
-                    .unwrap();
-                    //Self::extract_asset(&cb_list[0].asset);
-            
-             for cb in cb_list {
+            for cb in cb_list {
+                let mut transaction = stellar::Transaction::new(
+                    source_pubkey.clone(),
+                    seq_num,
+                    Some(10_000),
+                    None,
+                    None,
+                )
+                .unwrap();
+
                 let id = &cb.id[..];
                 let potential_trused_asset = StorageValueRef::persistent(&id);
                 let cb_hexa_string = str::from_utf8(&cb.id).unwrap();
@@ -718,66 +721,115 @@ pub mod pallet {
                 let unprefixed_cb_hexa_string = &cb_hexa_string[8..];
                 let cb_to_array = <[u8; 32]>::from_hex(unprefixed_cb_hexa_string).unwrap();
                 let cb_id = stellar::ClaimableBalanceId::ClaimableBalanceIdTypeV0(cb_to_array);
-                let claim_operation = stellar::Operation::new_claim_claimable_balance(cb_id).unwrap(); 
+                let claim_operation =
+                    stellar::Operation::new_claim_claimable_balance(cb_id).unwrap();
 
-                if let Some(Some(trusted_asset)) = potential_trused_asset.get::<Vec<u8>>() {
-                    transaction.append_operation(claim_operation);
+                if let Some(Some(_trusted_asset)) = potential_trused_asset.get::<Vec<u8>>() {
+                    let res = transaction.append_operation(claim_operation);
+                    match res {
+                        Ok(_) => {}
+                        Err(_) => debug::warn!("🛑 Failed adding Claim Operation to Transaction"),
+                    }
                 } else {
                     let asset: stellar::Asset = Self::extract_asset(&cb.asset).unwrap();
                     //storing asset in trusted assets ocw storage
                     potential_trused_asset.set(&id);
-                    let trust_operation =stellar::Operation:: new_change_trust(asset).unwrap();
-                    transaction.append_operation(trust_operation);
-                    transaction.append_operation(claim_operation);
+                    let trust_operation = stellar::Operation::new_change_trust(asset).unwrap();
+
+                    match transaction.append_operation(trust_operation) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            debug::warn!("🛑 Failed adding Trust Asset Operation to Transaction")
+                        }
+                    }
+
+                    match transaction.append_operation(claim_operation) {
+                        Ok(_) => {}
+                        Err(_) => debug::warn!("🛑 Failed adding Claim Operation to Transaction"),
+                    }
+                }
+
+                // Retreive Pendulum Address
+                let stellar_destination = cb.claimants[0].destination.as_ref();
+                let stringed_destination = str::from_utf8(stellar_destination).unwrap();
+                let destination_stellar_public =
+                    stellar::PublicKey::from_encoding(stringed_destination).unwrap();
+                let destination = T::AddressConversion::unlookup(destination_stellar_public);
+
+                // Retreive Pendulum  Amount
+                let stroop_amount = cb
+                    .amount
+                    .clone()
+                    .into_stroop_amount(true)
+                    .map_err(|_| <Error<T>>::BalanceConversionError)
+                    .unwrap();
+                let amount_as_balance = T::BalanceConversion::unlookup(stroop_amount);
+
+                //Retreive Pendulum Currency
+                let asset = Self::extract_asset(&cb.asset);
+                let currency = T::CurrencyConversion::unlookup(asset.unwrap());
+
+                let signed_envelope =
+                    Self::sign_stellar_tx(transaction, source_keypair.clone()).unwrap();
+                let result = Self::submit_stellar_tx(signed_envelope);
+                match result {
+                    Ok(_) => debug::info!(
+                        "✅ Successfully submitted Claim Balances transaction to Stellar"
+                    ),
+                    Err(_) => debug::warn!("🛑 Claimable Balance submission failed."),
+                }
+
+                match Self::offchain_unsigned_tx_signed_payload(
+                    currency,
+                    amount_as_balance,
+                    destination,
+                ) {
+                    Err(_) => debug::warn!("🛑 Deposit Claimable Balance failed."),
+                    Ok(_) => {
+                        debug::info!("✅ Pendulum Claimable Deposit successfully Executed");
+                        ()
+                    }
                 }
             }
-
-             let signed_envelope = Self::sign_stellar_tx(transaction, source_keypair).unwrap();
-             let result = Self::submit_stellar_tx(signed_envelope);
-             debug::info!("✔️ Successfully submitted Claim Balances transaction to Stellar");
-                          
         }
-        
-        fn trust_asset(claimable_balance_id: &Vec<u8>){}
 
-        fn extract_asset(asset: &Vec<u8>) -> Option<stellar::Asset>{
+        fn extract_asset(asset: &Vec<u8>) -> Option<stellar::Asset> {
             if asset == &"native".as_bytes().to_vec() {
                 return Some(stellar::Asset::native());
             }
-            
+
             let stringed_asset_vec: Vec<_> = str::from_utf8(&asset).unwrap().split(':').collect();
             let asset_code = stringed_asset_vec[0];
             let issuer_str = stringed_asset_vec[1];
             let asset_code_len: u8 = asset_code.len() as u8;
 
-            let issuer = stellar::PublicKey::from_encoding(issuer_str)
-            .unwrap();
+            let issuer = stellar::PublicKey::from_encoding(issuer_str).unwrap();
 
             if asset_code_len <= 4 {
-                let mut code: [u8;4] = [0; 4];
+                let mut code: [u8; 4] = [0; 4];
                 code[..asset_code.clone().len()].copy_from_slice(asset_code.clone().as_bytes());
 
-               let asset_aphanum4 =  stellar::types::AssetAlphaNum4 { asset_code: code,
-                issuer: issuer.clone()
-             };
-            let asset =  stellar::Asset::AssetTypeCreditAlphanum4(asset_aphanum4);
-             return Some(asset);
+                let asset_aphanum4 = stellar::types::AssetAlphaNum4 {
+                    asset_code: code,
+                    issuer: issuer.clone(),
+                };
+                let asset = stellar::Asset::AssetTypeCreditAlphanum4(asset_aphanum4);
+                return Some(asset);
             }
 
             if asset_code_len > 4 {
-                let mut code: [u8;12] = [0; 12];
+                let mut code: [u8; 12] = [0; 12];
                 code[..asset_code.clone().len()].copy_from_slice(asset_code.clone().as_bytes());
 
-               let asset_aphanum12 =  stellar::types::AssetAlphaNum12 {
-                asset_code: code,
-                issuer: issuer.clone()
-             };
-            let asset =  stellar::Asset::AssetTypeCreditAlphanum12(asset_aphanum12);
-            return Some(asset);
+                let asset_aphanum12 = stellar::types::AssetAlphaNum12 {
+                    asset_code: code,
+                    issuer: issuer.clone(),
+                };
+                let asset = stellar::Asset::AssetTypeCreditAlphanum12(asset_aphanum12);
+                return Some(asset);
             }
             None
         }
-
     }
 
     impl<T: Config> frame_support::unsigned::ValidateUnsigned for Pallet<T> {
