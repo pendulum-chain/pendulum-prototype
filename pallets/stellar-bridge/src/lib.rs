@@ -132,10 +132,8 @@ pub mod pallet {
     use sp_runtime::offchain::HttpError;
     use sp_std::str::Utf8Error;
     use stellar::network::TEST_NETWORK;
-    use stellar::types::{ OperationBody, PaymentOp};
-    use stellar::{
-         IntoAmount, SecretKey, XdrCodec, StellarSdkError
-    };
+    use stellar::types::{OperationBody, PaymentOp};
+    use stellar::{IntoAmount, SecretKey, StellarSdkError, XdrCodec};
 
     #[pallet::config]
     pub trait Config:
@@ -729,10 +727,9 @@ pub mod pallet {
                 if let Some(Some(_trusted_asset)) = potential_trused_asset.get::<Vec<u8>>() {
                     let res = transaction.append_operation(claim_operation);
                     match res {
-                        Ok(_) => {},
-                        Err(_) =>  debug::warn!("🛑 Failed adding Claim Operation to Transaction"),
+                        Ok(_) => {}
+                        Err(_) => debug::warn!("🛑 Failed adding Claim Operation to Transaction"),
                     }
-
                 } else {
                     let asset: stellar::Asset = Self::extract_asset(&cb.asset).unwrap();
                     //storing asset in trusted assets ocw storage
@@ -740,13 +737,15 @@ pub mod pallet {
                     let trust_operation = stellar::Operation::new_change_trust(asset).unwrap();
 
                     match transaction.append_operation(trust_operation) {
-                        Ok(_) => {},
-                        Err(_) =>  debug::warn!("🛑 Failed adding Trust Asset Operation to Transaction"),
+                        Ok(_) => {}
+                        Err(_) => {
+                            debug::warn!("🛑 Failed adding Trust Asset Operation to Transaction")
+                        }
                     }
 
                     match transaction.append_operation(claim_operation) {
-                        Ok(_) => {},
-                        Err(_) =>  debug::warn!("🛑 Failed adding Claim Operation to Transaction"),
+                        Ok(_) => {}
+                        Err(_) => debug::warn!("🛑 Failed adding Claim Operation to Transaction"),
                     }
                 }
 
